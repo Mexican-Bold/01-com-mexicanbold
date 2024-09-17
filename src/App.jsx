@@ -15,7 +15,7 @@ function App() {
           target="_blank"
           rel="noopener noreferrer"
         >
-          Learn Solid
+	  Mexican Bold - Orgullosamente Indiscreto
         </a>
       </header>
     </div>
