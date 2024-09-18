@@ -6,17 +6,18 @@ function App() {
     <div class={styles.App}>
       <header class={styles.header}>
         <img src={logo} class={styles.logo} alt="logo" />
-        <p>
-          Edit <code>src/App.jsx</code> and save to reload.
-        </p>
-        <a
+                <a
           class={styles.link}
           href="https://github.com/solidjs/solid"
           target="_blank"
           rel="noopener noreferrer"
         >
-	  Mexican Bold - Orgullosamente Indiscreto
+	  Mexican Bold - Orgullosamente Chingón 
         </a>
+<p>
+	  Estilo rock star a tu alance. 
+        </p>
+
       </header>
     </div>
   );
