@@ -1,6 +1,25 @@
 <script>
-  // ✅ Fixed import for animejs
-  import anime from 'animejs';
+  // ✅ Import animejs - fallback to CDN if not installed
+  let anime;
+  
+  import { onMount } from 'svelte';
+  
+  onMount(async () => {
+    try {
+      // Try to import animejs if it's installed
+      const animeModule = await import('animejs');
+      anime = animeModule.default;
+    } catch (e) {
+      console.log('Animejs not found locally, loading from CDN...');
+      // Fallback to CDN
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js';
+      script.onload = () => {
+        anime = window.anime;
+      };
+      document.head.appendChild(script);
+    }
+  });
 
   // State
   /** @type {File | null} */ let image = null;
@@ -92,7 +111,10 @@
 
   // ✅ Fixed animation function
   function animateFromPlan(animations) {
-    if (!Array.isArray(animations)) return;
+    if (!Array.isArray(animations) || !anime) {
+      console.log('Animations not ready or anime not loaded');
+      return;
+    }
     
     console.log('Starting animations:', animations);
     
