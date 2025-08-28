@@ -1,9 +1,11 @@
 <script>
-  let image = null;
-  let prompt = "";
-  let result = null;
+  // State
+  /** @type {File | null} */ let image = null;
+  /** @type {string} */ let prompt = "";
+  /** @type {Object | null} */ let result = null;
+  /** @type {boolean} */ let isProcessing = false;
 
-  // ✅ Resize image to max 800px width
+  // ✅ Resize image before upload to avoid Worker timeout
   async function resizeImage(file) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -27,27 +29,40 @@
         canvas.width = width;
         canvas.height = height;
         ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(resolve, "image/png", 0.8);
+        canvas.toBlob(resolve, "image/png", 0.8); // 80% quality
       };
       img.src = URL.createObjectURL(file);
     });
   }
 
+  // ✅ Submit handler
   async function submit() {
-    if (!image || !prompt) return;
+    if (!image || !prompt) {
+      alert("Please upload an image and enter a prompt.");
+      return;
+    }
 
-    // ✅ Resize before sending
-    const resizedImage = await resizeImage(image);
-    const formData = new FormData();
-    formData.append("image", resizedImage, "drawing.png");
-    formData.append("prompt", prompt);
+    isProcessing = true;
 
-    const res = await fetch("/api/animate", {
-      method: "POST",
-      body: formData,
-    });
+    try {
+      // ✅ Resize image before sending
+      const resizedImage = await resizeImage(image);
+      const formData = new FormData();
+      formData.append("image", resizedImage, "drawing.png");
+      formData.append("prompt", prompt);
 
-    result = await res.json();
+      const res = await fetch("/api/animate", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      result = data;
+    } catch (err) {
+      result = { error: "Request failed", message: err.message };
+    } finally {
+      isProcessing = false;
+    }
   }
 </script>
 
