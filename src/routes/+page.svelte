@@ -1,24 +1,53 @@
 <script>
-  /** @type {File | null} */ let image = null;
-  /** @type {string} */ let prompt = "";
-  /** @type {Object | null} */ let result = null;
-  /** @type {boolean} */ let isProcessing = false;
+  let image = null;
+  let prompt = "";
+  let result = null;
+
+  // ✅ Resize image to max 800px width
+  async function resizeImage(file) {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    const img = new Image();
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        const maxSize = 800;
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(resolve, "image/png", 0.8);
+      };
+      img.src = URL.createObjectURL(file);
+    });
+  }
 
   async function submit() {
-    if (!image || !prompt) return alert("Please upload an image and enter a prompt.");
+    if (!image || !prompt) return;
 
+    // ✅ Resize before sending
+    const resizedImage = await resizeImage(image);
     const formData = new FormData();
-    formData.append("image", image);
+    formData.append("image", resizedImage, "drawing.png");
     formData.append("prompt", prompt);
 
-    isProcessing = true;
     const res = await fetch("/api/animate", {
       method: "POST",
       body: formData,
     });
 
     result = await res.json();
-    isProcessing = false;
   }
 </script>
 
