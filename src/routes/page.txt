@@ -59,6 +59,15 @@
     }
   }
 
+  // NEW: Check image status manually
+  function checkImageStatus() {
+    const img = document.querySelector('.main-image');
+    if (img && img.complete && img.naturalHeight !== 0) {
+      console.log('Image already loaded, triggering load handler manually');
+      handleImageLoad();
+    }
+  }
+
   // Resize image to prevent Worker timeout
   async function resizeImage(file) {
     const canvas = document.createElement("canvas");
@@ -123,6 +132,20 @@
       if (result.animationPlan.length > 0) {
         console.log('Animation plan:', result.animationPlan);
         pendingAnimations = result.animationPlan;
+        
+        // NEW: Check if image is already loaded
+        setTimeout(checkImageStatus, 100);
+        
+        // NEW: Set a fallback timeout in case image loading fails
+        setTimeout(() => {
+          if (pendingAnimations && anime) {
+            console.log('Running animations as fallback after timeout');
+            imageLoaded = true; // Force set to true
+            animateFromPlan(pendingAnimations);
+            pendingAnimations = null;
+          }
+        }, 3000); // 3 second fallback
+        
         // If image is already loaded and anime is ready, run immediately
         if (imageLoaded && anime) {
           setTimeout(() => {
@@ -160,10 +183,14 @@
     
     console.log('Starting animations:', animations);
     
-    // Debug: Check what elements are available
+    // NEW: Enhanced debugging
     setTimeout(() => {
       const allTargets = document.querySelectorAll('[data-animation-target], #arm-left, #arm-right, .eye, #vine-path');
       console.log('All available animation targets:', allTargets);
+      
+      // Specifically check for arm elements
+      const armElements = document.querySelectorAll('#arm-left, #arm-right, [data-animation-target="arms"]');
+      console.log('Arm elements specifically:', armElements);
     }, 100);
     
     animations.forEach((anim, index) => {
@@ -176,7 +203,6 @@
         const targets = '#arm-left, #arm-right, [data-animation-target="arms"]';
         console.log('Wiggling arms with targets:', targets);
         
-        // Debug what we find
         const foundElements = document.querySelectorAll(targets);
         console.log('Found arm elements:', foundElements);
         
@@ -351,6 +377,16 @@
             alt="Uploaded drawing" 
             class="main-image"
             on:load={handleImageLoad}
+            on:error={() => {
+              console.error('Image failed to load');
+              // Try to run animations anyway
+              if (pendingAnimations && anime) {
+                imageLoaded = true; // Force set to true
+                animateFromPlan(pendingAnimations);
+                pendingAnimations = null;
+              }
+            }}
+            crossorigin="anonymous"
           />
 
           <!-- ✅ SVG Overlay for Animation - Always render animation elements -->
@@ -571,3 +607,5 @@
     margin-top: 1rem;
   }
 </style>
+
+
