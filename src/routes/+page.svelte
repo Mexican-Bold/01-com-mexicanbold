@@ -1,6 +1,8 @@
 <script>
   // ✅ Import animejs - fallback to CDN if not installed
   let anime;
+  let imageLoaded = false;
+  let pendingAnimations = null;
   
   import { onMount } from 'svelte';
   
@@ -12,6 +14,11 @@
       script.onload = () => {
         anime = window.anime;
         console.log('Anime.js loaded successfully');
+        // If we have pending animations, run them now
+        if (pendingAnimations && imageLoaded) {
+          animateFromPlan(pendingAnimations);
+          pendingAnimations = null;
+        }
       };
       script.onerror = () => {
         console.error('Failed to load anime.js from CDN');
@@ -36,6 +43,19 @@
     if (file) {
       image = file;
       imagePreview = URL.createObjectURL(file);
+    }
+  }
+
+  // Handle image load event
+  function handleImageLoad() {
+    imageLoaded = true;
+    console.log('Image loaded, ready for animation');
+    // If we have pending animations, run them now
+    if (pendingAnimations && anime) {
+      setTimeout(() => {
+        animateFromPlan(pendingAnimations);
+        pendingAnimations = null;
+      }, 100); // Small delay to ensure DOM is fully rendered
     }
   }
 
@@ -77,6 +97,8 @@
     }
 
     isProcessing = true;
+    imageLoaded = false; // Reset image loaded state
+    pendingAnimations = null;
 
     try {
       const resizedImage = await resizeImage(image);
@@ -97,13 +119,17 @@
       result = data;
       console.log('Animation result received:', result);
 
-      // ✅ Trigger animation if plan exists
+      // ✅ Store animations to run after image loads
       if (result.animationPlan.length > 0) {
         console.log('Animation plan:', result.animationPlan);
-        // Wait a bit longer to ensure anime.js is loaded and DOM is ready
-        setTimeout(() => {
-          animateFromPlan(result.animationPlan);
-        }, 1000);
+        pendingAnimations = result.animationPlan;
+        // If image is already loaded and anime is ready, run immediately
+        if (imageLoaded && anime) {
+          setTimeout(() => {
+            animateFromPlan(pendingAnimations);
+            pendingAnimations = null;
+          }, 500);
+        }
       }
     } catch (err) {
       result = { error: "Request failed", message: err.message };
@@ -113,7 +139,7 @@
     }
   }
 
-  // ✅ Fixed animation function
+  // ✅ Fixed animation function with better DOM targeting
   function animateFromPlan(animations) {
     if (!Array.isArray(animations)) {
       console.log('No animations array provided');
@@ -121,12 +147,24 @@
     }
     
     if (!anime) {
-      console.log('Anime.js not loaded yet, retrying in 1 second...');
-      setTimeout(() => animateFromPlan(animations), 1000);
+      console.log('Anime.js not loaded yet, storing as pending...');
+      pendingAnimations = animations;
+      return;
+    }
+
+    if (!imageLoaded) {
+      console.log('Image not loaded yet, storing as pending...');
+      pendingAnimations = animations;
       return;
     }
     
     console.log('Starting animations:', animations);
+    
+    // Debug: Check what elements are available
+    setTimeout(() => {
+      const allTargets = document.querySelectorAll('[data-animation-target], #arm-left, #arm-right, .eye, #vine-path');
+      console.log('All available animation targets:', allTargets);
+    }, 100);
     
     animations.forEach((anim, index) => {
       if (!anim.target || !anim.action) return;
@@ -137,15 +175,24 @@
       if (anim.action === "wiggle" && anim.target.includes("arms")) {
         const targets = '#arm-left, #arm-right, [data-animation-target="arms"]';
         console.log('Wiggling arms with targets:', targets);
-        anime({
-          targets: targets,
-          rotate: [-15, 15],
-          duration: anim.duration || 1000,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 200
-        });
+        
+        // Debug what we find
+        const foundElements = document.querySelectorAll(targets);
+        console.log('Found arm elements:', foundElements);
+        
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            rotate: [-15, 15],
+            duration: anim.duration || 1000,
+            loop: true,
+            direction: 'alternate',
+            easing: 'easeInOutSine',
+            delay: index * 200
+          });
+        } else {
+          console.warn('No arm elements found for wiggling');
+        }
       }
       
       // Hair swaying
@@ -166,20 +213,26 @@
       
       // Eye blinking
       if (anim.action === "blink") {
-        anime({
-          targets: '.eye',
-          opacity: [1, 0, 1],
-          duration: anim.duration || 400,
-          easing: 'linear',
-          loop: true,
-          delay: anime.stagger(150, {start: index * 300})
-        });
+        const eyeElements = document.querySelectorAll('.eye');
+        console.log('Found eye elements for blinking:', eyeElements);
+        
+        if (eyeElements.length > 0) {
+          anime({
+            targets: '.eye',
+            opacity: [1, 0, 1],
+            duration: anim.duration || 400,
+            easing: 'linear',
+            loop: true,
+            delay: anime.stagger(150, {start: index * 300})
+          });
+        }
       }
 
       // Vine growing
       if (anim.action === "grow" && anim.target.includes("vine")) {
-        // Set initial dash offset
         const vineElement = document.querySelector('#vine-path');
+        console.log('Found vine element:', vineElement);
+        
         if (vineElement) {
           const pathLength = vineElement.getTotalLength();
           vineElement.style.strokeDasharray = pathLength;
@@ -198,71 +251,58 @@
 
       // Pulse animation
       if (anim.action === "pulse") {
-        anime({
-          targets: `[data-animation-target*="${anim.target}"]`,
-          scale: [1, 1.2, 1],
-          duration: anim.duration || 800,
-          loop: true,
-          easing: 'easeInOutQuad',
-          delay: index * 200
-        });
+        const targets = `[data-animation-target*="${anim.target}"], #generic-${index}`;
+        console.log('Pulse targets:', targets);
+        
+        const foundElements = document.querySelectorAll(targets);
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            scale: [1, 1.2, 1],
+            duration: anim.duration || 800,
+            loop: true,
+            easing: 'easeInOutQuad',
+            delay: index * 200
+          });
+        }
       }
 
-      // Sway animation
-      if (anim.action === "sway") {
-        anime({
-          targets: `[data-animation-target*="${anim.target}"]`,
-          translateX: [-10, 10],
-          duration: anim.duration || 1500,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 250
-        });
+      // Sway animation (non-hair)
+      if (anim.action === "sway" && !anim.target.includes("hair")) {
+        const targets = `[data-animation-target*="${anim.target}"], #generic-${index}`;
+        console.log('Generic sway targets:', targets);
+        
+        const foundElements = document.querySelectorAll(targets);
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            translateX: [-10, 10],
+            duration: anim.duration || 1500,
+            loop: true,
+            direction: 'alternate',
+            easing: 'easeInOutSine',
+            delay: index * 250
+          });
+        }
       }
 
-      // Generic wiggle, pulse, sway for any target
+      // Generic wiggle for non-arms
       if (anim.action === "wiggle" && !anim.target.includes("arms")) {
         const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
         console.log('Generic wiggle targets:', targets);
-        anime({
-          targets: targets,
-          rotate: [-5, 5],
-          duration: anim.duration || 600,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 200
-        });
-      }
-      
-      // Generic pulse for any target  
-      if (anim.action === "pulse") {
-        const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
-        console.log('Pulse targets:', targets);
-        anime({
-          targets: targets,
-          scale: [1, 1.3, 1],
-          duration: anim.duration || 800,
-          loop: true,
-          easing: 'easeInOutQuad',
-          delay: index * 200
-        });
-      }
-
-      // Generic sway for non-hair targets
-      if (anim.action === "sway" && !anim.target.includes("hair")) {
-        const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
-        console.log('Generic sway targets:', targets);
-        anime({
-          targets: targets,
-          translateX: [-10, 10],
-          duration: anim.duration || 1500,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 250
-        });
+        
+        const foundElements = document.querySelectorAll(targets);
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            rotate: [-5, 5],
+            duration: anim.duration || 600,
+            loop: true,
+            direction: 'alternate',
+            easing: 'easeInOutSine',
+            delay: index * 200
+          });
+        }
       }
     });
   }
@@ -306,66 +346,83 @@
       <div class="result-container">
         <h3>Your Animated Drawing</h3>
         <div class="image-container">
-          <img src={result.imageUrl} alt="Uploaded drawing" class="main-image" />
+          <img 
+            src={result.imageUrl} 
+            alt="Uploaded drawing" 
+            class="main-image"
+            on:load={handleImageLoad}
+          />
 
-          <!-- ✅ SVG Overlay for Animation -->
+          <!-- ✅ SVG Overlay for Animation - Always render animation elements -->
           <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
+            <!-- Always include common animation targets -->
+            
+            <!-- Arms (always present for wiggle animations) -->
+            <path 
+              id="arm-left" 
+              d="M80,180 C100,160 120,200 140,180" 
+              stroke="rgba(0,255,0,0.7)" 
+              stroke-width="8" 
+              fill="none"
+              data-animation-target="arms"
+              opacity="0.8" />
+            <path 
+              id="arm-right" 
+              d="M260,180 C280,160 300,200 320,180" 
+              stroke="rgba(0,255,0,0.7)" 
+              stroke-width="8" 
+              fill="none"
+              data-animation-target="arms"
+              opacity="0.8" />
+
+            <!-- Eyes (for blinking) -->
+            <circle class="eye" cx="170" cy="140" r="8" fill="rgba(0,0,0,0.8)" />
+            <circle class="eye" cx="230" cy="140" r="8" fill="rgba(0,0,0,0.8)" />
+
+            <!-- Hair (for swaying) -->
+            <path 
+              d="M130,100 C150,80 180,85 210,90 C230,95 250,100 260,110"
+              stroke="rgba(139,69,19,0.7)"
+              stroke-width="6"
+              fill="none"
+              data-animation-target="hair" 
+              id="hair-0"
+              opacity="0.8" />
+
             <!-- Dynamic elements based on animation plan -->
             {#each result.animationPlan as anim, i}
-              {#if anim.target.includes('arms') && anim.action === 'wiggle'}
-                <!-- Arms -->
-                <path 
-                  id="arm-left" 
-                  d="M100,200 C120,180 140,220 160,200" 
-                  stroke="rgba(0,255,0,0.8)" 
-                  stroke-width="6" 
-                  fill="none"
-                  data-animation-target="arms" />
-                <path 
-                  id="arm-right" 
-                  d="M300,200 C320,180 340,220 360,200" 
-                  stroke="rgba(0,255,0,0.8)" 
-                  stroke-width="6" 
-                  fill="none"
-                  data-animation-target="arms" />
-              {:else if anim.action === 'blink'}
-                <!-- Eyes -->
-                <circle class="eye" cx="180" cy="120" r="12" fill="rgba(0,0,0,0.9)" data-animation-target={anim.target} />
-                <circle class="eye" cx="220" cy="120" r="12" fill="rgba(0,0,0,0.9)" data-animation-target={anim.target} />
-              {:else if anim.target.includes('vine') && anim.action === 'grow'}
+              {#if anim.target.includes('vine') && anim.action === 'grow'}
                 <!-- Vine -->
                 <path 
                   id="vine-path"
                   d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
                   stroke="rgba(0,150,0,0.8)"
-                  stroke-width="5"
+                  stroke-width="6"
                   fill="none"
                   data-animation-target={anim.target} />
-              {:else if anim.target.includes('hair')}
-                <!-- Hair elements -->
-                <path 
-                  d="M150,80 C170,60 200,65 230,70 C250,75 270,80 280,90"
-                  stroke="rgba(139,69,19,0.8)"
-                  stroke-width="4"
-                  fill="none"
-                  data-animation-target="hair" 
-                  id="hair-{i}" />
-              {:else}
-                <!-- Generic animated element -->
+              {:else if !anim.target.includes('arms') && !anim.target.includes('hair') && !anim.target.includes('eye')}
+                <!-- Generic animated element for other targets -->
                 <g data-animation-target={anim.target} id="generic-{i}">
                   <circle 
-                    cx={120 + (i * 60)} 
-                    cy={180 + (i * 30)} 
-                    r="20" 
-                    fill="rgba(255,100,150,0.6)"
-                    stroke="rgba(255,100,150,0.9)"
-                    stroke-width="2" />
-                  <text x={120 + (i * 60)} y={185 + (i * 30)} text-anchor="middle" fill="white" font-size="10">
-                    {anim.target.slice(0,4)}
+                    cx={120 + (i * 80)} 
+                    cy={200 + (i * 40)} 
+                    r="25" 
+                    fill="rgba(255,150,100,0.6)"
+                    stroke="rgba(255,150,100,0.9)"
+                    stroke-width="3" />
+                  <text x={120 + (i * 80)} y={205 + (i * 40)} text-anchor="middle" fill="white" font-size="12" font-weight="bold">
+                    {anim.target.slice(0,3)}
                   </text>
                 </g>
               {/if}
             {/each}
+
+            <!-- Debug info overlay -->
+            {#if pendingAnimations}
+              <text x="10" y="380" fill="rgba(255,0,0,0.7)" font-size="12">
+                Waiting for image to load...
+              </text>
+            {/if}
           </svg>
         </div>
 
@@ -396,6 +453,11 @@
         {:else}
           <p>No animations were generated. Try a more specific request!</p>
         {/if}
+
+        <!-- Debug info -->
+        <div class="debug-info" style="margin-top: 1rem; padding: 0.5rem; background: #f0f0f0; font-size: 0.8rem; color: #666;">
+          <p><strong>Debug:</strong> Image loaded: {imageLoaded}, Anime ready: {!!anime}, Pending: {!!pendingAnimations}</p>
+        </div>
       </div>
     {/if}
   {/if}
@@ -416,6 +478,7 @@
     border: 2px solid #ddd;
     border-radius: 8px;
     overflow: hidden;
+    background: #fafafa;
   }
   
   .main-image { 
@@ -501,5 +564,10 @@
     display: block;
     margin: 1rem 0;
     font-weight: 500;
+  }
+
+  .debug-info {
+    border-radius: 4px;
+    margin-top: 1rem;
   }
 </style>
