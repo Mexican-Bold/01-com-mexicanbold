@@ -47,10 +47,17 @@
       formData.append("prompt", prompt);
 
       const res = await fetch("/api/animate", { method: "POST", body: formData });
-      result = await res.json();
+      const data = await res.json();
 
-      // ✅ Trigger animation after receiving JSON
-      if (result.animationPlan) {
+      // ✅ Normalize animationPlan to always be an array
+      if (data.animationPlan && !Array.isArray(data.animationPlan)) {
+        data.animationPlan = [];
+      }
+
+      result = data;
+
+      // ✅ Only animate if we have valid array
+      if (Array.isArray(result.animationPlan) && result.animationPlan.length > 0) {
         setTimeout(() => {
           animateFromPlan(result.animationPlan);
         }, 100);
@@ -62,8 +69,11 @@
     }
   }
 
-  // ✅ Use the JSON to animate!
+  // ✅ Animate using the plan
   function animateFromPlan(animations) {
+    // ✅ Only proceed if animations is an array
+    if (!Array.isArray(animations)) return;
+
     animations.forEach((anim) => {
       if (anim.action === "wiggle" && anim.target.includes("arms")) {
         anime({
@@ -114,7 +124,7 @@
       <img src={result.imageUrl} alt="Uploaded drawing" style="max-width: 100%; border: 1px solid #ccc;" />
 
       <!-- ✅ Overlay SVG for animation -->
-      {#if result.animationPlan?.some(a => a.target.includes('arms'))}
+      {#if Array.isArray(result.animationPlan) && result.animationPlan.some(a => a.target.includes('arms'))}
         <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
           <path id="arm-left" d="M100,200 C120,180 140,220 160,200" stroke="green" stroke-width="8" fill="none" />
           <path id="arm-right" d="M300,200 C320,180 340,220 360,200" stroke="green" stroke-width="8" fill="none" />

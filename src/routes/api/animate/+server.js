@@ -7,7 +7,7 @@
 export async function POST({ request, platform }) {
   const env = platform.env;
 
-  // ✅ Extract and validate environment variables
+  // ✅ Validate required environment variables
   const ACCOUNT_ID = env.ACCOUNT_ID;
   const IMAGES_API_TOKEN = env.IMAGES_API_TOKEN;
 
@@ -51,7 +51,7 @@ export async function POST({ request, platform }) {
       );
     }
 
-    // --- Helper: Timeout wrapper for AI calls ---
+    // ✅ Helper: Timeout wrapper for AI calls
     function withTimeout(promise, ms) {
       return Promise.race([
         promise,
@@ -68,7 +68,7 @@ export async function POST({ request, platform }) {
       const boundary = '----CloudflareWorkerFormBoundary' + Math.random().toString(16);
       const crlf = '\r\n';
 
-      // Construct multipart body
+      // Construct the multipart body
       const formDataBlob = new Blob([
         crlf + `--${boundary}${crlf}` +
         `Content-Disposition: form-data; name="file"; filename="drawing.png"${crlf}` +
@@ -172,31 +172,28 @@ Return ONLY JSON.
 
       animationPlan = JSON.parse(llamaResponse.response.trim());
     } catch (err) {
-      animationPlan = {
-        raw: llamaResponse?.response || "Failed to generate",
-        warning: "LLM did not return valid JSON",
-        parseError: err.message
-      };
+      // ✅ Always return an array, even on error
+      animationPlan = [];
     }
 
-    // ✅ Return success
+    // ✅ Return success response
     return new Response(
       JSON.stringify({
         imageUrl,
         imageId: imageResult.id,
         imageDescription,
         userPrompt: prompt,
-        animationPlan,
+        animationPlan
       }),
       { headers: { "content-type": "application/json" } }
     );
   } catch (err) {
-    // 🚨 Final fallback
+    // 🚨 Final fallback for any uncaught error
     return new Response(
       JSON.stringify({
         error: "Unexpected server error",
         message: err.message,
-        stack: err.stack || "No stack trace"
+        stack: err.stack || "No stack trace available"
       }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
