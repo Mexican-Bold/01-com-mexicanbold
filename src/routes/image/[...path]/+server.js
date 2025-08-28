@@ -1,32 +1,39 @@
 // src/routes/image/[...path]/+server.js
 
 export async function GET({ params, platform }) {
-  const { path } = params;
-  const pathParts = path.split('/');
-  
-  if (pathParts.length < 2) {
-    return new Response('Invalid image path', { status: 400 });
-  }
-  
-  const imageId = pathParts[0]; // The first part of the path is the image ID
-  
-  // Get ACCOUNT_ID from platform.env (Cloudflare Workers environment)
-  const accountId = platform?.env?.ACCOUNT_ID;
-  
-  if (!accountId) {
-    console.error('Account ID not configured');
-    return new Response('Account ID not configured', { status: 500 });
-  }
-  
-  // Construct the Cloudflare Images URL
-  const imageUrl = `https://imagedelivery.net/${accountId}/${imageId}/public`;
-  
   try {
+    const { path } = params;
+    console.log('Image proxy request for path:', path);
+    
+    const pathParts = path.split('/');
+    
+    if (pathParts.length < 2) {
+      console.error('Invalid image path:', path);
+      return new Response('Invalid image path', { status: 400 });
+    }
+    
+    const imageId = pathParts[0]; // The first part of the path is the image ID
+    
+    // Get ACCOUNT_ID from platform.env (Cloudflare Workers environment)
+    const accountId = platform?.env?.ACCOUNT_ID;
+    
+    if (!accountId) {
+      console.error('Account ID not configured');
+      return new Response('Account ID not configured', { status: 500 });
+    }
+    
+    console.log('Using Account ID:', accountId);
+    console.log('Image ID:', imageId);
+    
+    // Construct the Cloudflare Images URL
+    const imageUrl = `https://imagedelivery.net/${accountId}/${imageId}/public`;
+    console.log('Fetching image from:', imageUrl);
+    
     // Fetch the image from Cloudflare Images
     const imageResponse = await fetch(imageUrl);
     
     if (!imageResponse.ok) {
-      console.error('Image not found:', imageUrl);
+      console.error('Image not found:', imageUrl, 'Status:', imageResponse.status);
       return new Response('Image not found', { status: 404 });
     }
     
@@ -42,9 +49,10 @@ export async function GET({ params, platform }) {
     response.headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
     
+    console.log('Successfully served image with CORS headers');
     return response;
   } catch (error) {
-    console.error('Error fetching image:', error);
-    return new Response('Error fetching image', { status: 500 });
+    console.error('Error in image proxy:', error);
+    return new Response('Internal server error', { status: 500 });
   }
 }

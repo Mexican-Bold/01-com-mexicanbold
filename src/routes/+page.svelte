@@ -300,140 +300,149 @@
   }
 
   // Animation function
-  function animateFromPlan(animations) {
-    if (!Array.isArray(animations)) {
-      console.log('No animations array provided');
-      return;
-    }
- 
-    if (!anime) {
-      console.log('Anime.js not loaded yet, storing as pending...');
-      pendingAnimations = animations;
-      return;
-    }
+// Animation function
+function animateFromPlan(animations) {
+  if (!Array.isArray(animations)) {
+    console.log('No animations array provided');
+    return;
+  }
+  
+  if (!anime) {
+    console.log('Anime.js not loaded yet, storing as pending...');
+    pendingAnimations = animations;
+    return;
+  }
 
-    if (!imageLoaded) {
-      console.log('Image not loaded yet, storing as pending...');
-      pendingAnimations = animations;
-      return;
+  if (!imageLoaded) {
+    console.log('Image not loaded yet, storing as pending...');
+    pendingAnimations = animations;
+    return;
+  }
+  
+  console.log('Starting animations:', animations);
+  
+  // Enhanced debugging
+  setTimeout(() => {
+    const allTargets = document.querySelectorAll('[data-animation-target]');
+    console.log('All available animation targets:', allTargets);
+    
+    // Specifically check for arm elements
+    const armElements = document.querySelectorAll('#arms-group, [data-animation-target="arms"]');
+    console.log('Arm elements specifically:', armElements);
+    
+    // Check for eye elements
+    const eyeElements = document.querySelectorAll('#eyes-group, [data-animation-target="eyes"], .eye');
+    console.log('Eye elements specifically:', eyeElements);
+    
+    // Check for iris elements
+    const irisElements = document.querySelectorAll('#iris-group, [data-animation-target="iris"]');
+    console.log('Iris elements specifically:', irisElements);
+  }, 100);
+  
+  animations.forEach((anim, index) => {
+    if (!anim.target || !anim.action) return;
+
+    console.log(`Animating ${index + 1}/${animations.length}:`, anim);
+
+    // Arms wiggling
+    if (anim.action === "wiggle" && anim.target.includes("arms")) {
+      const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
+      console.log('Wiggling arms with targets:', targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found arm elements:', foundElements);
+      
+      if (foundElements.length > 0) {
+        anime({
+          targets: targets,
+          rotate: [-15, 15],
+          duration: anim.duration || 1000,
+          loop: true,
+          direction: 'alternate',
+          easing: 'easeInOutSine',
+          delay: index * 200
+        });
+      } else {
+        console.warn('No arm elements found for wiggling');
+      }
     }
     
-    console.log('Starting animations:', animations);
-    
-    // Enhanced debugging
-    setTimeout(() => {
-      const allTargets = document.querySelectorAll('[data-animation-target], #arm-left, #arm-right, .eye, #vine-path');
-      console.log('All available animation targets:', allTargets);
+    // Eye blinking
+    if (anim.action === "blink") {
+      const targets = '#eyes-group, .eye';
+      console.log('Blinking eyes with targets:', targets);
       
-      // Specifically check for arm elements
-      const armElements = document.querySelectorAll('#arm-left, #arm-right, [data-animation-target="arms"]');
-      console.log('Arm elements specifically:', armElements);
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found eye elements for blinking:', foundElements);
       
-      // Check for eye elements
-      const eyeElements = document.querySelectorAll('.eye, [data-animation-target="eyes"]');
-      console.log('Eye elements specifically:', eyeElements);
+      if (foundElements.length > 0) {
+        anime({
+          targets: targets,
+          opacity: [1, 0, 1],
+          duration: anim.duration || 400,
+          easing: 'linear',
+          loop: true,
+          delay: anime.stagger(150, {start: index * 300})
+        });
+      } else {
+        console.warn('No eye elements found for blinking');
+      }
+    }
+
+    // Eye swaying
+    if (anim.action === "sway" && anim.target.includes("eyes")) {
+      const targets = '#eyes-group';
+      console.log('Swaying eyes with targets:', targets);
       
-      // Check for iris elements
-      const irisElements = document.querySelectorAll('[data-animation-target="iris"]');
-      console.log('Iris elements specifically:', irisElements);
-    }, 100);
-    
-    animations.forEach((anim, index) => {
-      if (!anim.target || !anim.action) return;
-
-      console.log(`Animating ${index + 1}/${animations.length}:`, anim);
-
-      // Arms wiggling - target both specific arms and generic "arms"
-      if (anim.action === "wiggle" && anim.target.includes("arms")) {
-        const targets = '#arm-left, #arm-right, [data-animation-target="arms"]';
-        console.log('Wiggling arms with targets:', targets);
-        
-        const foundElements = document.querySelectorAll(targets);
-        console.log('Found arm elements:', foundElements);
-        
-        if (foundElements.length > 0) {
-          anime({
-            targets: targets,
-            rotate: [-15, 15],
-            duration: anim.duration || 1000,
-            loop: true,
-            direction: 'alternate',
-            easing: 'easeInOutSine',
-            delay: index * 200
-          });
-        } else {
-          console.warn('No arm elements found for wiggling');
-        }
-      }
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found eye elements for swaying:', foundElements);
       
-      // Eye blinking
-      if (anim.action === "blink") {
-        const eyeElements = document.querySelectorAll('.eye, [data-animation-target="eyes"]');
-        console.log('Found eye elements for blinking:', eyeElements);
-        
-        if (eyeElements.length > 0) {
-          anime({
-            targets: '.eye, [data-animation-target="eyes"]',
-            opacity: [1, 0, 1],
-            duration: anim.duration || 400,
-            easing: 'linear',
-            loop: true,
-            delay: anime.stagger(150, {start: index * 300})
-          });
-        } else {
-          console.warn('No eye elements found for blinking');
-        }
+      if (foundElements.length > 0) {
+        anime({
+          targets: targets,
+          translateX: [-10, 10],
+          duration: anim.duration || 1500,
+          loop: true,
+          direction: 'alternate',
+          easing: 'easeInOutSine',
+          delay: index * 250
+        });
+      } else {
+        console.warn('No eye elements found for swaying');
       }
+    }
 
-      // Eye swaying
-      if (anim.action === "sway" && anim.target.includes("eyes")) {
-        const targets = '[data-animation-target="eyes"], #generic-1';
-        console.log('Swaying eyes with targets:', targets);
-        
-        const foundElements = document.querySelectorAll(targets);
-        console.log('Found eye elements for swaying:', foundElements);
-        
-        if (foundElements.length > 0) {
-          anime({
-            targets: targets,
-            translateX: [-10, 10],
-            duration: anim.duration || 1500,
-            loop: true,
-            direction: 'alternate',
-            easing: 'easeInOutSine',
-            delay: index * 250
-          });
-        } else {
-          console.warn('No eye elements found for swaying');
-        }
+    // Iris pulsing
+    if (anim.action === "pulse" && anim.target.includes("iris")) {
+      const targets = '#iris-group';
+      console.log('Pulsing iris with targets:', targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found iris elements for pulsing:', foundElements);
+      
+      if (foundElements.length > 0) {
+        anime({
+          targets: targets,
+          scale: [1, 1.2, 1],
+          duration: anim.duration || 800,
+          loop: true,
+          easing: 'easeInOutQuad',
+          delay: index * 200
+        });
+      } else {
+        console.warn('No iris elements found for pulsing');
       }
+    }
 
-      // Iris pulsing
-      if (anim.action === "pulse" && anim.target.includes("iris")) {
-        const targets = '[data-animation-target="iris"], #generic-2';
-        console.log('Pulsing iris with targets:', targets);
-        
-        const foundElements = document.querySelectorAll(targets);
-        console.log('Found iris elements for pulsing:', foundElements);
-        
-        if (foundElements.length > 0) {
-          anime({
-            targets: targets,
-            scale: [1, 1.2, 1],
-            duration: anim.duration || 800,
-            loop: true,
-            easing: 'easeInOutQuad',
-            delay: index * 200
-          });
-        } else {
-          console.warn('No iris elements found for pulsing');
-        }
-      }
-
-      // Hair swaying
-      if (anim.action === "sway" && anim.target.includes("hair")) {
-        const targets = `[data-animation-target="hair"], #hair-${index}`;
-        console.log('Swaying hair with targets:', targets);
+    // Hair swaying
+    if (anim.action === "sway" && anim.target.includes("hair")) {
+      const targets = '#hair-main';
+      console.log('Swaying hair with targets:', targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found hair elements for swaying:', foundElements);
+      
+      if (foundElements.length > 0) {
         anime({
           targets: targets,
           rotate: [-5, 5],
@@ -444,36 +453,42 @@
           easing: 'easeInOutSine',
           delay: index * 200
         });
+      } else {
+        console.warn('No hair elements found for swaying');
       }
+    }
 
-      // Vine growing
-      if (anim.action === "grow" && anim.target.includes("vine")) {
-        const vineElement = document.querySelector('#vine-path');
-        console.log('Found vine element:', vineElement);
+    // Vine growing
+    if (anim.action === "grow" && anim.target.includes("vine")) {
+      const vineElement = document.querySelector('#vine-path');
+      console.log('Found vine element:', vineElement);
+      
+      if (vineElement) {
+        const pathLength = vineElement.getTotalLength();
+        vineElement.style.strokeDasharray = pathLength;
+        vineElement.style.strokeDashoffset = pathLength;
         
-        if (vineElement) {
-          const pathLength = vineElement.getTotalLength();
-          vineElement.style.strokeDasharray = pathLength;
-          vineElement.style.strokeDashoffset = pathLength;
-          
-          anime({
-            targets: '#vine-path',
-            strokeDashoffset: [pathLength, 0],
-            duration: anim.duration || 2000,
-            easing: 'easeInOutQuad',
-            loop: false,
-            delay: index * 300
-          });
-        }
+        anime({
+          targets: '#vine-path',
+          strokeDashoffset: [pathLength, 0],
+          duration: anim.duration || 2000,
+          easing: 'easeInOutQuad',
+          loop: false,
+          delay: index * 300
+        });
       }
+    }
 
-      // Pulse animation (non-iris)
-      if (anim.action === "pulse" && !anim.target.includes("iris")) {
-        const targets = `[data-animation-target*="${anim.target}"], #generic-${index}`;
-        console.log('Pulse targets:', targets);
-        
-        const foundElements = document.querySelectorAll(targets);
-        if (foundElements.length > 0) {
+    // Generic animations
+    if (!anim.target.includes('arms') && !anim.target.includes('eyes') && !anim.target.includes('iris') && !anim.target.includes('hair') && !anim.target.includes('vine')) {
+      const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
+      console.log(`Generic ${anim.action} for ${anim.target} with targets:`, targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found generic elements:', foundElements);
+      
+      if (foundElements.length > 0) {
+        if (anim.action === "pulse") {
           anime({
             targets: targets,
             scale: [1, 1.2, 1],
@@ -482,16 +497,7 @@
             easing: 'easeInOutQuad',
             delay: index * 200
           });
-        }
-      }
-
-      // Sway animation (non-hair, non-eyes)
-      if (anim.action === "sway" && !anim.target.includes("hair") && !anim.target.includes("eyes")) {
-        const targets = `[data-animation-target*="${anim.target}"], #generic-${index}`;
-        console.log('Generic sway targets:', targets);
-        
-        const foundElements = document.querySelectorAll(targets);
-        if (foundElements.length > 0) {
+        } else if (anim.action === "sway") {
           anime({
             targets: targets,
             translateX: [-10, 10],
@@ -501,16 +507,7 @@
             easing: 'easeInOutSine',
             delay: index * 250
           });
-        }
-      }
-
-      // Generic wiggle for non-arms
-      if (anim.action === "wiggle" && !anim.target.includes("arms")) {
-        const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
-        console.log('Generic wiggle targets:', targets);
-        
-        const foundElements = document.querySelectorAll(targets);
-        if (foundElements.length > 0) {
+        } else if (anim.action === "wiggle") {
           anime({
             targets: targets,
             rotate: [-5, 5],
@@ -521,9 +518,12 @@
             delay: index * 200
           });
         }
+      } else {
+        console.warn(`No elements found for ${anim.action} on ${anim.target}`);
       }
-    });
-  }
+    }
+  });
+}
 </script>
 
 <main>
@@ -630,7 +630,155 @@
 </main>
 
 <style>
-  /* Existing styles remain the same */
+  main { 
+    max-width: 800px; 
+    margin: 2rem auto; 
+    padding: 0 1rem; 
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  
+  .image-container {
+    position: relative;
+    display: inline-block;
+    margin: 1rem 0;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fafafa;
+    width: 400px;
+    height: 400px;
+  }
+  
+  .main-image { 
+    max-width: 100%; 
+    display: block; 
+  }
+  
+  .animation-overlay { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    pointer-events: none; 
+  }
+  
+  .spinner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  
+  .spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 4px solid #007acc;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .image-placeholder {
+    width: 100%;
+    height: 400px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #f5f5f5;
+    color: #666;
+    text-align: center;
+    padding: 1rem;
+  }
+  
+  .error {
+    background: #fee;
+    border: 1px solid #fcc;
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    color: #c00;
+  }
+  
+  .result-container {
+    margin: 2rem 0;
+  }
+  
+  .description, .animation-plan {
+    background: #f8f9fa;
+    padding: 1rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  
+  .animation-plan ul {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .animation-plan li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .animation-plan li:last-child {
+    border-bottom: none;
+  }
+  
+  button { 
+    padding: 0.75rem 1.5rem; 
+    font-size: 1rem; 
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 0.5rem 0;
+  }
+  
+  button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+  }
+  
+  button:hover:not(:disabled) {
+    background: #005fa3;
+  }
+  
+  input[type="file"], input[type="text"] { 
+    margin: 0.5rem 0; 
+    padding: 0.5rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+  }
+  
+  input[type="text"] {
+    font-size: 1rem;
+  }
+  
+  label {
+    display: block;
+    margin: 1rem 0;
+    font-weight: 500;
+  }
+
+  .debug-info {
+    border-radius: 4px;
+    margin-top: 1rem;
+  }
   
   /* New styles for saved images */
   .saved-images {
@@ -715,6 +863,4 @@
     margin-top: 0.5rem;
     color: #666;
   }
-  
-  /* Rest of the existing styles remain the same */
 </style>
