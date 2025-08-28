@@ -4,20 +4,22 @@
   
   import { onMount } from 'svelte';
   
-  onMount(async () => {
-    try {
-      // Try to import animejs if it's installed
-      const animeModule = await import('animejs');
-      anime = animeModule.default;
-    } catch (e) {
-      console.log('Animejs not found locally, loading from CDN...');
-      // Fallback to CDN
+  onMount(() => {
+    // Load anime.js from CDN
+    if (!window.anime) {
       const script = document.createElement('script');
       script.src = 'https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js';
       script.onload = () => {
         anime = window.anime;
+        console.log('Anime.js loaded successfully');
+      };
+      script.onerror = () => {
+        console.error('Failed to load anime.js from CDN');
       };
       document.head.appendChild(script);
+    } else {
+      anime = window.anime;
+      console.log('Anime.js already available');
     }
   });
 
@@ -97,9 +99,11 @@
 
       // ✅ Trigger animation if plan exists
       if (result.animationPlan.length > 0) {
+        console.log('Animation plan:', result.animationPlan);
+        // Wait a bit longer to ensure anime.js is loaded and DOM is ready
         setTimeout(() => {
           animateFromPlan(result.animationPlan);
-        }, 500);
+        }, 1000);
       }
     } catch (err) {
       result = { error: "Request failed", message: err.message };
@@ -111,8 +115,14 @@
 
   // ✅ Fixed animation function
   function animateFromPlan(animations) {
-    if (!Array.isArray(animations) || !anime) {
-      console.log('Animations not ready or anime not loaded');
+    if (!Array.isArray(animations)) {
+      console.log('No animations array provided');
+      return;
+    }
+    
+    if (!anime) {
+      console.log('Anime.js not loaded yet, retrying in 1 second...');
+      setTimeout(() => animateFromPlan(animations), 1000);
       return;
     }
     
