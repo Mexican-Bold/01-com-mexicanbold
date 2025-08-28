@@ -63,7 +63,7 @@
     }
   }
 
-  // NEW: Handle image error
+  // Handle image error
   function handleImageError() {
     console.error('Image failed to load');
     imageError = true;
