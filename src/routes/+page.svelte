@@ -290,9 +290,6 @@ if (result.animationPlan.length > 0) {
     }
   }
 
-  // Animation function
-// Animation function
-
 // Animation function
 function animateFromPlan(animations) {
   if (!Array.isArray(animations)) {
@@ -335,6 +332,31 @@ function animateFromPlan(animations) {
 
     console.log(`Animating ${index + 1}/${animations.length}:`, anim);
 
+    // Handle "main element" target by mapping to appropriate elements
+    if (anim.target === "main element") {
+      console.log('Handling "main element" target - mapping to eyes');
+      // Map "main element" to eyes for blinking
+      const targets = '#eyes-group, .eye';
+      console.log('Blinking eyes with targets:', targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found eye elements for blinking:', foundElements);
+      
+      if (foundElements.length > 0) {
+        anime({
+          targets: targets,
+          opacity: [1, 0, 1],
+          duration: anim.duration || 400,
+          easing: 'linear',
+          loop: true,
+          delay: anime.stagger(150, {start: index * 300})
+        });
+      } else {
+        console.warn('No eye elements found for blinking');
+      }
+      return;
+    }
+
     // Arms wiggling
     if (anim.action === "wiggle" && anim.target.includes("arms")) {
       const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
@@ -358,31 +380,8 @@ function animateFromPlan(animations) {
       }
     }
     
-    // Hair wiggling
-    if (anim.action === "wiggle" && anim.target.includes("hair")) {
-      const targets = '#hair-main';
-      console.log('Wiggling hair with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found hair elements:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          rotate: [-5, 5],
-          duration: anim.duration || 800,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 200
-        });
-      } else {
-        console.warn('No hair elements found for wiggling');
-      }
-    }
-
     // Eye blinking
-    if (anim.action === "blink") {
+    if (anim.action === "blink" || (anim.target.includes("eye") && anim.action === "pulse")) {
       const targets = '#eyes-group, .eye';
       console.log('Blinking eyes with targets:', targets);
       
@@ -448,6 +447,31 @@ function animateFromPlan(animations) {
       }
     }
 
+    // Hair animations
+    if (anim.target.includes("hair")) {
+      const targets = '#hair-main';
+      console.log('Animating hair with targets:', targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found hair elements:', foundElements);
+      
+      if (foundElements.length > 0) {
+        if (anim.action === "wiggle" || anim.action === "sway") {
+          anime({
+            targets: targets,
+            rotate: [-5, 5],
+            duration: anim.duration || 800,
+            loop: true,
+            direction: 'alternate',
+            easing: 'easeInOutSine',
+            delay: index * 200
+          });
+        }
+      } else {
+        console.warn('No hair elements found for animation');
+      }
+    }
+
     // Vine growing
     if (anim.action === "grow" && anim.target.includes("vine")) {
       const vineElement = document.querySelector('#vine-path');
@@ -470,7 +494,7 @@ function animateFromPlan(animations) {
     }
 
     // Generic animations
-    if (!anim.target.includes('arms') && !anim.target.includes('eyes') && !anim.target.includes('iris') && !anim.target.includes('hair') && !anim.target.includes('vine')) {
+    if (!anim.target.includes('arms') && !anim.target.includes('eyes') && !anim.target.includes('iris') && !anim.target.includes('hair') && !anim.target.includes('vine') && anim.target !== "main element") {
       const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
       console.log(`Generic ${anim.action} for ${anim.target} with targets:`, targets);
       
@@ -514,7 +538,6 @@ function animateFromPlan(animations) {
     }
   });
 }
-
 </script>
 
 <main>

@@ -6,6 +6,7 @@ export async function GET({ params, platform }) {
     console.log('Image proxy request for path:', path);
     
     const pathParts = path.split('/');
+    console.log('Path parts:', pathParts);
     
     if (pathParts.length < 2) {
       console.error('Invalid image path:', path);
@@ -13,23 +14,58 @@ export async function GET({ params, platform }) {
     }
     
     const imageId = pathParts[0];
+    console.log('Extracted image ID:', imageId);
     
-    // For now, hardcode the account ID to test
-    const accountId = "477082f5c9678c608889bd8f03f7b807";
+    // Get ACCOUNT_ID from platform.env
+    const accountId = platform?.env?.ACCOUNT_ID;
+    
+    if (!accountId) {
+      console.error('Account ID not configured');
+      return new Response('Account ID not configured', { status: 500 });
+    }
     
     console.log('Using Account ID:', accountId);
-    console.log('Image ID:', imageId);
     
-    // Construct the Cloudflare Images URL
-    const imageUrl = `https://imagedelivery.net/${accountId}/${imageId}/public`;
-    console.log('Fetching image from:', imageUrl);
+    // Try different URL formats
+    const urlsToTry = [
+      `https://imagedelivery.net/${accountId}/${imageId}/public`,
+      `https://imagedelivery.net/${accountId}/${imageId}`,
+      `https://imagedelivery.net/${accountId}/${imageId}/w=400,h=400`
+    ];
     
-    // Fetch the image from Cloudflare Images
-    const imageResponse = await fetch(imageUrl);
+    console.log('Will try these URLs:', urlsToTry);
     
-    if (!imageResponse.ok) {
-      console.error('Image not found:', imageUrl, 'Status:', imageResponse.status);
-      return new Response('Image not found', { status: 404 });
+    let imageResponse = null;
+    let workingUrl = null;
+    
+    for (const url of urlsToTry) {
+      console.log('Trying URL:', url);
+      try {
+        const response = await fetch(url);
+        console.log('Response status for', url, ':', response.status);
+        
+        if (response.ok) {
+          imageResponse = response;
+          workingUrl = url;
+          console.log('Working URL found:', workingUrl);
+          break;
+        }
+      } catch (error) {
+        console.error('Error fetching', url, ':', error);
+      }
+    }
+    
+    if (!imageResponse) {
+      console.error('None of the URLs worked');
+      return new Response(JSON.stringify({
+        error: 'Image not found with any URL format',
+        triedUrls: urlsToTry,
+        imageId: imageId,
+        accountId: accountId
+      }), { 
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     
     // Create a new response with CORS headers
@@ -44,10 +80,17 @@ export async function GET({ params, platform }) {
     response.headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
     
-    console.log('Successfully served image with CORS headers');
+    console.log('Successfully served image with CORS headers from:', workingUrl);
     return response;
   } catch (error) {
     console.error('Error in image proxy:', error);
-    return new Response('Internal server error', { status: 500 });
+    return new Response(JSON.stringify({
+      error: 'Internal server error',
+      message: error.message,
+      stack: error.stack
+    }), { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
