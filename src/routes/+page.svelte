@@ -1,6 +1,7 @@
 <script>
-  // Import Anime.js from npm
-  import anime from 'animejs';
+  // ✅ Fixed import for animejs
+  import * as AnimeJS from 'animejs';
+  const anime = AnimeJS.default;
 
   // State
   /** @type {File | null} */ let image = null;
