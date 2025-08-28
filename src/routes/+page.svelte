@@ -250,44 +250,35 @@
           localStorage.setItem('savedImages', JSON.stringify(savedImages));
         }
       }
+// In the submit function, replace the relevant part with this:
 
-      if (result.animationPlan.length > 0) {
-        console.log('Animation plan:', result.animationPlan);
-        pendingAnimations = result.animationPlan;
-        
-        if (result.imageUrl) {
-          // Try to load the image
-          const blobUrl = await loadImageAsBlob(result.imageUrl);
-          if (blobUrl) {
-            result.imageUrl = blobUrl;
-            // Don't set imageLoaded = true here, wait for the image to actually load
-          } else {
-            // If image loading fails, we'll still run the animations after a timeout
-            console.log('Image loading failed, will run animations after timeout');
-          }
-        }
-        
-        // Check if image is already loaded
-        setTimeout(checkImageStatus, 100);
-        
-        // Set a fallback timeout in case image loading fails
-        setTimeout(() => {
-          if (pendingAnimations && anime) {
-            console.log('Running animations as fallback after timeout');
-            imageLoaded = true; // Force set to true
-            animateFromPlan(pendingAnimations);
-            pendingAnimations = null;
-          }
-        }, 3000);
-        
-        // If image is already loaded and anime is ready, run immediately
-        if (imageLoaded && anime) {
-          setTimeout(() => {
-            animateFromPlan(pendingAnimations);
-            pendingAnimations = null;
-          }, 500);
-        }
-      } else {
+if (result.animationPlan.length > 0) {
+  console.log('Animation plan:', result.animationPlan);
+  pendingAnimations = result.animationPlan;
+  
+  if (result.imageUrl) {
+    // Try to load the image
+    const blobUrl = await loadImageAsBlob(result.imageUrl);
+    if (blobUrl) {
+      result.imageUrl = blobUrl;
+    } else {
+      console.log('Image loading failed, will run animations after timeout');
+    }
+  }
+  
+  // Force animations to run after 2 seconds regardless of image loading
+  setTimeout(() => {
+    if (pendingAnimations && anime) {
+      console.log('Forcing animations to run after timeout');
+      imageLoaded = true; // Force set to true
+      animateFromPlan(pendingAnimations);
+      pendingAnimations = null;
+    }
+  }, 2000);
+  
+  // Check if image is already loaded
+  setTimeout(checkImageStatus, 100);
+} else {
         showSpinner = false;
       }
     } catch (err) {
@@ -300,6 +291,8 @@
   }
 
   // Animation function
+// Animation function
+
 // Animation function
 function animateFromPlan(animations) {
   if (!Array.isArray(animations)) {
@@ -321,23 +314,21 @@ function animateFromPlan(animations) {
   
   console.log('Starting animations:', animations);
   
-  // Enhanced debugging
-  setTimeout(() => {
-    const allTargets = document.querySelectorAll('[data-animation-target]');
-    console.log('All available animation targets:', allTargets);
-    
-    // Specifically check for arm elements
-    const armElements = document.querySelectorAll('#arms-group, [data-animation-target="arms"]');
-    console.log('Arm elements specifically:', armElements);
-    
-    // Check for eye elements
-    const eyeElements = document.querySelectorAll('#eyes-group, [data-animation-target="eyes"], .eye');
-    console.log('Eye elements specifically:', eyeElements);
-    
-    // Check for iris elements
-    const irisElements = document.querySelectorAll('#iris-group, [data-animation-target="iris"]');
-    console.log('Iris elements specifically:', irisElements);
-  }, 100);
+  // Enhanced debugging - check immediately
+  const allTargets = document.querySelectorAll('[data-animation-target]');
+  console.log('All available animation targets:', allTargets);
+  
+  // Specifically check for arm elements
+  const armElements = document.querySelectorAll('#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]');
+  console.log('Arm elements specifically:', armElements);
+  
+  // Check for eye elements
+  const eyeElements = document.querySelectorAll('#eyes-group, .eye');
+  console.log('Eye elements specifically:', eyeElements);
+  
+  // Check for iris elements
+  const irisElements = document.querySelectorAll('#iris-group');
+  console.log('Iris elements specifically:', irisElements);
   
   animations.forEach((anim, index) => {
     if (!anim.target || !anim.action) return;
@@ -367,6 +358,29 @@ function animateFromPlan(animations) {
       }
     }
     
+    // Hair wiggling
+    if (anim.action === "wiggle" && anim.target.includes("hair")) {
+      const targets = '#hair-main';
+      console.log('Wiggling hair with targets:', targets);
+      
+      const foundElements = document.querySelectorAll(targets);
+      console.log('Found hair elements:', foundElements);
+      
+      if (foundElements.length > 0) {
+        anime({
+          targets: targets,
+          rotate: [-5, 5],
+          duration: anim.duration || 800,
+          loop: true,
+          direction: 'alternate',
+          easing: 'easeInOutSine',
+          delay: index * 200
+        });
+      } else {
+        console.warn('No hair elements found for wiggling');
+      }
+    }
+
     // Eye blinking
     if (anim.action === "blink") {
       const targets = '#eyes-group, .eye';
@@ -431,30 +445,6 @@ function animateFromPlan(animations) {
         });
       } else {
         console.warn('No iris elements found for pulsing');
-      }
-    }
-
-    // Hair swaying
-    if (anim.action === "sway" && anim.target.includes("hair")) {
-      const targets = '#hair-main';
-      console.log('Swaying hair with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found hair elements for swaying:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          rotate: [-5, 5],
-          transformOrigin: 'top center',
-          duration: anim.duration || 1200,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 200
-        });
-      } else {
-        console.warn('No hair elements found for swaying');
       }
     }
 
@@ -524,6 +514,7 @@ function animateFromPlan(animations) {
     }
   });
 }
+
 </script>
 
 <main>
@@ -592,36 +583,117 @@ function animateFromPlan(animations) {
     {:else if result.imageUrl}
       <div class="result-container">
         <h3>Your Animated Drawing</h3>
-        <div class="image-container">
-          <!-- Spinner overlay -->
-          {#if showSpinner}
-            <div class="spinner-overlay">
-              <div class="spinner"></div>
-              <p>Loading your animation...</p>
-            </div>
-          {/if}
-          
-          <!-- Image or placeholder -->
-          {#if imageError}
-            <div class="image-placeholder">
-              <p>Image couldn't be loaded, but animations are still running!</p>
-            </div>
-          {:else}
-            <img 
-              src={result.imageUrl} 
-              alt="Uploaded drawing" 
-              class="main-image"
-              on:load={handleImageLoad}
-              on:error={handleImageError}
-              crossorigin="anonymous"
-            />
-          {/if}
 
-          <!-- SVG Overlay remains the same -->
-          <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
-            <!-- SVG content remains the same -->
-          </svg>
-        </div>
+<div class="image-container">
+  <!-- Spinner overlay -->
+  {#if showSpinner}
+    <div class="spinner-overlay">
+      <div class="spinner"></div>
+      <p>Loading your animation...</p>
+    </div>
+  {/if}
+  
+  <!-- Image or placeholder -->
+  {#if imageError}
+    <div class="image-placeholder">
+      <p>Image couldn't be loaded, but animations are still running!</p>
+    </div>
+  {:else}
+    <img 
+      src={result.imageUrl} 
+      alt="Uploaded drawing" 
+      class="main-image"
+      on:load={handleImageLoad}
+      on:error={handleImageError}
+      crossorigin="anonymous"
+    />
+  {/if}
+
+  <!-- ✅ SVG Overlay for Animation - Place this code here -->
+  <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet" style="background: rgba(255,255,255,0.1);">
+    <!-- Debug text to verify SVG is rendering -->
+    <text x="10" y="20" fill="rgba(0,0,255,0.7)" font-size="12">
+      Debug: SVG Overlay Active
+    </text>
+    
+    <!-- Arms (always present for wiggle animations) -->
+    <g id="arms-group" data-animation-target="arms">
+      <path 
+        id="arm-left" 
+        d="M80,180 C100,160 120,200 140,180" 
+        stroke="rgba(0,255,0,0.7)" 
+        stroke-width="8" 
+        fill="none"
+        data-animation-target="arms"
+        opacity="0.8" />
+      <path 
+        id="arm-right" 
+        d="M260,180 C280,160 300,200 320,180" 
+        stroke="rgba(0,255,0,0.7)" 
+        stroke-width="8" 
+        fill="none"
+        data-animation-target="arms"
+        opacity="0.8" />
+    </g>
+
+    <!-- Eyes (for blinking) -->
+    <g id="eyes-group" data-animation-target="eyes">
+      <circle class="eye" id="eye-left" cx="170" cy="140" r="8" fill="rgba(0,0,0,0.8)" />
+      <circle class="eye" id="eye-right" cx="230" cy="140" r="8" fill="rgba(0,0,0,0.8)" />
+    </g>
+
+    <!-- Iris elements for pulsing -->
+    <g id="iris-group" data-animation-target="iris">
+      <circle id="iris-left" cx="170" cy="140" r="4" fill="rgba(0,0,255,0.8)" />
+      <circle id="iris-right" cx="230" cy="140" r="4" fill="rgba(0,0,255,0.8)" />
+    </g>
+
+    <!-- Hair (for swaying) -->
+    <path 
+      id="hair-main" 
+      d="M130,100 C150,80 180,85 210,90 C230,95 250,100 260,110"
+      stroke="rgba(139,69,19,0.7)"
+      stroke-width="6"
+      fill="none"
+      data-animation-target="hair" 
+      opacity="0.8" />
+
+    <!-- Dynamic elements based on animation plan -->
+    {#each result.animationPlan as anim, i}
+      {#if anim.target.includes('vine') && anim.action === 'grow'}
+        <!-- Vine -->
+        <path 
+          id="vine-path"
+          d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
+          stroke="rgba(0,150,0,0.8)"
+          stroke-width="6"
+          fill="none"
+          data-animation-target={anim.target} />
+      {:else if !anim.target.includes('arms') && !anim.target.includes('hair') && !anim.target.includes('eye') && !anim.target.includes('iris')}
+        <!-- Generic animated element for other targets -->
+        <g data-animation-target={anim.target} id="generic-{i}">
+          <circle 
+            cx={120 + (i * 80)} 
+            cy={200 + (i * 40)} 
+            r="25" 
+            fill="rgba(255,150,100,0.6)"
+            stroke="rgba(255,150,100,0.9)"
+            stroke-width="3" />
+          <text x={120 + (i * 80)} y={205 + (i * 40)} text-anchor="middle" fill="white" font-size="12" font-weight="bold">
+            {anim.target.slice(0,3)}
+          </text>
+        </g>
+      {/if}
+    {/each}
+
+    <!-- Debug info overlay -->
+    {#if pendingAnimations}
+      <text x="10" y="380" fill="rgba(255,0,0,0.7)" font-size="12">
+        Waiting for image to load...
+      </text>
+    {/if}
+  </svg>
+</div>
 
         <!-- Rest of the result section remains the same -->
       </div>

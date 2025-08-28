@@ -12,15 +12,10 @@ export async function GET({ params, platform }) {
       return new Response('Invalid image path', { status: 400 });
     }
     
-    const imageId = pathParts[0]; // The first part of the path is the image ID
+    const imageId = pathParts[0];
     
-    // Get ACCOUNT_ID from platform.env (Cloudflare Workers environment)
-    const accountId = platform?.env?.ACCOUNT_ID;
-    
-    if (!accountId) {
-      console.error('Account ID not configured');
-      return new Response('Account ID not configured', { status: 500 });
-    }
+    // For now, hardcode the account ID to test
+    const accountId = "477082f5c9678c608889bd8f03f7b807";
     
     console.log('Using Account ID:', accountId);
     console.log('Image ID:', imageId);
