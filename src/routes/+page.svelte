@@ -1,6 +1,6 @@
 <script>
   // ✅ Fixed import for animejs
-  import anime from 'animejs/lib/anime.es.js';
+  import anime from 'animejs';
 
   // State
   /** @type {File | null} */ let image = null;
