@@ -104,7 +104,14 @@ async function loadImageAsBlob(imageUrl) {
       // Extract the image ID from the URL
       const urlParts = imageUrl.split('/');
       const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
-      const variant = urlParts[urlParts.length - 1]; // The last part is the variant
+      let variant = urlParts[urlParts.length - 1]; // The last part is the variant
+      
+      // If the variant is "public" (which doesn't exist), use "full" instead
+      if (variant === 'public') {
+        variant = 'full';
+        console.log('Replacing "public" variant with "full"');
+      }
+      
       proxyUrl = `/image/${imageId}/${variant}`; // Use relative path with variant
       console.log('Using proxy URL:', proxyUrl);
     }

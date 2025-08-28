@@ -14,7 +14,14 @@ export async function GET({ params, platform }) {
     }
     
     const imageId = pathParts[0];
-    const requestedVariant = pathParts[1] || 'full'; // Default to 'full' variant
+    let requestedVariant = pathParts[1] || 'full'; // Default to 'full' variant
+    
+    // If the requested variant is "public" (which doesn't exist), use "full" instead
+    if (requestedVariant === 'public') {
+      requestedVariant = 'full';
+      console.log('Replacing "public" variant with "full"');
+    }
+    
     console.log('Extracted image ID:', imageId);
     console.log('Requested variant:', requestedVariant);
     
@@ -66,7 +73,7 @@ export async function GET({ params, platform }) {
     const imageData = await apiResponse.json();
     console.log('Image verified:', imageData.result.id);
     
-    // Extract variant names from the URLs
+    // Extract variant names from URLs
     const variantUrls = imageData.result.variants;
     console.log('Available variant URLs:', variantUrls);
     
