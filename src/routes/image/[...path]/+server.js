@@ -1,6 +1,6 @@
 // src/routes/image/[...path]/+server.js
 
-export async function GET({ params }) {
+export async function GET({ params, platform }) {
   const { path } = params;
   const pathParts = path.split('/');
   
@@ -10,10 +10,11 @@ export async function GET({ params }) {
   
   const imageId = pathParts[0]; // The first part of the path is the image ID
   
-  // Get ACCOUNT_ID from environment variables
-  const accountId = process.env.ACCOUNT_ID;
+  // Get ACCOUNT_ID from platform.env (Cloudflare Workers environment)
+  const accountId = platform?.env?.ACCOUNT_ID;
   
   if (!accountId) {
+    console.error('Account ID not configured');
     return new Response('Account ID not configured', { status: 500 });
   }
   
@@ -25,6 +26,7 @@ export async function GET({ params }) {
     const imageResponse = await fetch(imageUrl);
     
     if (!imageResponse.ok) {
+      console.error('Image not found:', imageUrl);
       return new Response('Image not found', { status: 404 });
     }
     

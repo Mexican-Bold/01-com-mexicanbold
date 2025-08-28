@@ -105,12 +105,18 @@
         const urlParts = imageUrl.split('/');
         const imageId = urlParts[urlParts.length - 2]; // The ID is before 'public'
         proxyUrl = `/image/${imageId}/public`; // Use relative path
+        console.log('Using proxy URL:', proxyUrl);
       }
       
       const response = await fetch(proxyUrl);
+      console.log('Proxy response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('Proxy response error:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
+      
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
       imageBlobUrl = blobUrl;
@@ -120,6 +126,23 @@
       console.error('Error loading image as blob:', error);
       imageError = true;
       showSpinner = false;
+      
+      // If proxy fails, try direct loading as fallback
+      if (imageUrl.includes('imagedelivery.net')) {
+        console.log('Trying direct image loading as fallback');
+        try {
+          const directResponse = await fetch(imageUrl);
+          if (directResponse.ok) {
+            const blob = await directResponse.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            imageBlobUrl = blobUrl;
+            return blobUrl;
+          }
+        } catch (directError) {
+          console.error('Direct loading also failed:', directError);
+        }
+      }
+      
       return null;
     }
   }
@@ -233,23 +256,31 @@
         pendingAnimations = result.animationPlan;
         
         if (result.imageUrl) {
+          // Try to load the image
           const blobUrl = await loadImageAsBlob(result.imageUrl);
           if (blobUrl) {
             result.imageUrl = blobUrl;
+            // Don't set imageLoaded = true here, wait for the image to actually load
+          } else {
+            // If image loading fails, we'll still run the animations after a timeout
+            console.log('Image loading failed, will run animations after timeout');
           }
         }
         
+        // Check if image is already loaded
         setTimeout(checkImageStatus, 100);
         
+        // Set a fallback timeout in case image loading fails
         setTimeout(() => {
           if (pendingAnimations && anime) {
             console.log('Running animations as fallback after timeout');
-            imageLoaded = true;
+            imageLoaded = true; // Force set to true
             animateFromPlan(pendingAnimations);
             pendingAnimations = null;
           }
         }, 3000);
         
+        // If image is already loaded and anime is ready, run immediately
         if (imageLoaded && anime) {
           setTimeout(() => {
             animateFromPlan(pendingAnimations);
@@ -268,13 +299,13 @@
     }
   }
 
-  // Animation function (same as before)
+  // Animation function
   function animateFromPlan(animations) {
     if (!Array.isArray(animations)) {
       console.log('No animations array provided');
       return;
     }
-    
+ 
     if (!anime) {
       console.log('Anime.js not loaded yet, storing as pending...');
       pendingAnimations = animations;
@@ -297,6 +328,14 @@
       // Specifically check for arm elements
       const armElements = document.querySelectorAll('#arm-left, #arm-right, [data-animation-target="arms"]');
       console.log('Arm elements specifically:', armElements);
+      
+      // Check for eye elements
+      const eyeElements = document.querySelectorAll('.eye, [data-animation-target="eyes"]');
+      console.log('Eye elements specifically:', eyeElements);
+      
+      // Check for iris elements
+      const irisElements = document.querySelectorAll('[data-animation-target="iris"]');
+      console.log('Iris elements specifically:', irisElements);
     }, 100);
     
     animations.forEach((anim, index) => {
@@ -327,6 +366,70 @@
         }
       }
       
+      // Eye blinking
+      if (anim.action === "blink") {
+        const eyeElements = document.querySelectorAll('.eye, [data-animation-target="eyes"]');
+        console.log('Found eye elements for blinking:', eyeElements);
+        
+        if (eyeElements.length > 0) {
+          anime({
+            targets: '.eye, [data-animation-target="eyes"]',
+            opacity: [1, 0, 1],
+            duration: anim.duration || 400,
+            easing: 'linear',
+            loop: true,
+            delay: anime.stagger(150, {start: index * 300})
+          });
+        } else {
+          console.warn('No eye elements found for blinking');
+        }
+      }
+
+      // Eye swaying
+      if (anim.action === "sway" && anim.target.includes("eyes")) {
+        const targets = '[data-animation-target="eyes"], #generic-1';
+        console.log('Swaying eyes with targets:', targets);
+        
+        const foundElements = document.querySelectorAll(targets);
+        console.log('Found eye elements for swaying:', foundElements);
+        
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            translateX: [-10, 10],
+            duration: anim.duration || 1500,
+            loop: true,
+            direction: 'alternate',
+            easing: 'easeInOutSine',
+            delay: index * 250
+          });
+        } else {
+          console.warn('No eye elements found for swaying');
+        }
+      }
+
+      // Iris pulsing
+      if (anim.action === "pulse" && anim.target.includes("iris")) {
+        const targets = '[data-animation-target="iris"], #generic-2';
+        console.log('Pulsing iris with targets:', targets);
+        
+        const foundElements = document.querySelectorAll(targets);
+        console.log('Found iris elements for pulsing:', foundElements);
+        
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            scale: [1, 1.2, 1],
+            duration: anim.duration || 800,
+            loop: true,
+            easing: 'easeInOutQuad',
+            delay: index * 200
+          });
+        } else {
+          console.warn('No iris elements found for pulsing');
+        }
+      }
+
       // Hair swaying
       if (anim.action === "sway" && anim.target.includes("hair")) {
         const targets = `[data-animation-target="hair"], #hair-${index}`;
@@ -341,23 +444,6 @@
           easing: 'easeInOutSine',
           delay: index * 200
         });
-      }
-      
-      // Eye blinking
-      if (anim.action === "blink") {
-        const eyeElements = document.querySelectorAll('.eye');
-        console.log('Found eye elements for blinking:', eyeElements);
-        
-        if (eyeElements.length > 0) {
-          anime({
-            targets: '.eye',
-            opacity: [1, 0, 1],
-            duration: anim.duration || 400,
-            easing: 'linear',
-            loop: true,
-            delay: anime.stagger(150, {start: index * 300})
-          });
-        }
       }
 
       // Vine growing
@@ -381,8 +467,8 @@
         }
       }
 
-      // Pulse animation
-      if (anim.action === "pulse") {
+      // Pulse animation (non-iris)
+      if (anim.action === "pulse" && !anim.target.includes("iris")) {
         const targets = `[data-animation-target*="${anim.target}"], #generic-${index}`;
         console.log('Pulse targets:', targets);
         
@@ -399,8 +485,8 @@
         }
       }
 
-      // Sway animation (non-hair)
-      if (anim.action === "sway" && !anim.target.includes("hair")) {
+      // Sway animation (non-hair, non-eyes)
+      if (anim.action === "sway" && !anim.target.includes("hair") && !anim.target.includes("eyes")) {
         const targets = `[data-animation-target*="${anim.target}"], #generic-${index}`;
         console.log('Generic sway targets:', targets);
         
@@ -440,7 +526,7 @@
   }
 </script>
 
-i<main>
+<main>
   <h1>Animate My Drawing</h1>
   <p>Upload a hand-drawn PNG or select a saved image to bring it to life with natural language.</p>
 
