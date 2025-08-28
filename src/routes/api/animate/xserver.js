@@ -130,7 +130,7 @@ export async function POST({ request, platform }) {
             "Describe this hand-drawn image in detail. Identify any parts that could animate: eyes, arms, vines, flowers, etc. Be specific about positions and colors.",
           image: [...imageBytes],
         }),
-        12000
+        8000
       );
 
       if (!llavaResponse || !llavaResponse.response) {
@@ -145,9 +145,9 @@ export async function POST({ request, platform }) {
     }
 
     // --- Step 3: Use Llama 3 to generate animation plan ---
-    let animationPlan = [];
-    try {
-      const llamaPrompt = `
+	let animationPlan = [];
+try {
+  const llamaPrompt = `
 You are an animation director for hand-drawn art. Given:
 Image: "${imageDescription}"
 Request: "${prompt}"
@@ -169,53 +169,59 @@ Example:
 ]
 
 Return ONLY JSON.
-      `.trim();
+  `.trim();
+
+  const llamaResponse = await withTimeout(
+    env.AI.run("@cf/meta/llama-3-8b-instruct", { prompt: llamaPrompt }),
+    8000
+  );
+
+  const raw = llamaResponse.response.trim();
+
+  // ✅ Parse and normalize the response
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (parseErr) {
+    console.error("Failed to parse LLM response as JSON:", raw);
+    animationPlan = [];
+    return;
+  }
+
+  // ✅ Normalize nested structures: { animations: [...] }
+  if (Array.isArray(parsed) && parsed.length > 0 && 'animations' in parsed[0]) {
+    animationPlan = parsed.flatMap(group => Array.isArray(group.animations) ? group.animations : []);
+  }
+  // ✅ Handle single object response
+  else if (!Array.isArray(parsed)) {
+    animationPlan = [parsed];
+  }
+  // ✅ Handle normal array
+  else {
+    animationPlan = parsed;
+  }
+
+  // ✅ Final safety: ensure all items are valid objects with target/action
+  animationPlan = animationPlan.filter(item => item && typeof item === 'object');
+} catch (err) {
+  console.error("LLM processing error:", err);
+  animationPlan = [];
+}
 
       const llamaResponse = await withTimeout(
         env.AI.run("@cf/meta/llama-3-8b-instruct", { prompt: llamaPrompt }),
-        10000
+        8000
       );
 
       const raw = llamaResponse.response.trim();
-      console.log("LLM raw response:", raw);
-
-      // Parse and normalize the response
-      let parsed;
-      try {
-        parsed = JSON.parse(raw);
-      } catch (parseErr) {
-        console.error("Failed to parse LLM response as JSON:", raw);
-        animationPlan = [];
-      }
-
-      if (parsed) {
-        // Normalize nested structures: { animations: [...] }
-        if (Array.isArray(parsed) && parsed.length > 0 && 'animations' in parsed[0]) {
-          animationPlan = parsed.flatMap(group => Array.isArray(group.animations) ? group.animations : []);
-        }
-        // Handle single object response
-        else if (!Array.isArray(parsed)) {
-          animationPlan = [parsed];
-        }
-        // Handle normal array
-        else if (Array.isArray(parsed)) {
-          animationPlan = parsed;
-        }
-
-        // Final safety: ensure all items are valid objects with target/action
-        animationPlan = animationPlan.filter(item => 
-          item && 
-          typeof item === 'object' && 
-          item.target && 
-          item.action
-        );
+      animationPlan = JSON.parse(raw);
+      if (!Array.isArray(animationPlan)) {
+        animationPlan = [animationPlan];
       }
     } catch (err) {
-      console.error("LLM processing error:", err);
+      console.error("LLM parse error:", err);
       animationPlan = [];
     }
-
-    console.log("Final animation plan:", animationPlan);
 
     // ✅ Return success
     return new Response(
