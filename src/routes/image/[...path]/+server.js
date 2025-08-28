@@ -14,9 +14,9 @@ export async function GET({ params, platform }) {
     }
     
     const imageId = pathParts[0];
-    const variant = pathParts[1] || 'full'; // Default to 'full' variant
+    const requestedVariant = pathParts[1] || 'full'; // Default to 'full' variant
     console.log('Extracted image ID:', imageId);
-    console.log('Using variant:', variant);
+    console.log('Requested variant:', requestedVariant);
     
     // Get credentials from platform.env
     const accountId = platform?.env?.ACCOUNT_ID;
@@ -66,14 +66,25 @@ export async function GET({ params, platform }) {
     const imageData = await apiResponse.json();
     console.log('Image verified:', imageData.result.id);
     
+    // Extract variant names from the URLs
+    const variantUrls = imageData.result.variants;
+    console.log('Available variant URLs:', variantUrls);
+    
+    // Extract variant names from URLs (last part of the URL)
+    const availableVariants = variantUrls.map(url => {
+      const urlParts = url.split('/');
+      return urlParts[urlParts.length - 1]; // Get the last part (variant name)
+    });
+    
+    console.log('Available variant names:', availableVariants);
+    
     // Check if the requested variant exists
-    if (!imageData.result.variants.includes(variant)) {
-      console.error('Variant not found:', variant);
-      console.log('Available variants:', imageData.result.variants);
+    if (!availableVariants.includes(requestedVariant)) {
+      console.error('Variant not found:', requestedVariant);
       return new Response(JSON.stringify({
         error: 'Variant not found',
-        requestedVariant: variant,
-        availableVariants: imageData.result.variants
+        requestedVariant: requestedVariant,
+        availableVariants: availableVariants
       }), { 
         status: 404,
         headers: { 'Content-Type': 'application/json' }
@@ -81,7 +92,7 @@ export async function GET({ params, platform }) {
     }
     
     // Construct the Cloudflare Images URL using the Image Delivery ID
-    const imageUrl = `https://imagedelivery.net/${imageDeliveryId}/${imageId}/${variant}`;
+    const imageUrl = `https://imagedelivery.net/${imageDeliveryId}/${imageId}/${requestedVariant}`;
     console.log('Fetching image from:', imageUrl);
     
     // Fetch the image from Cloudflare Images
