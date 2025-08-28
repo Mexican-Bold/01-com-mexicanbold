@@ -11,6 +11,13 @@ export async function POST({ request, platform }) {
   const ACCOUNT_ID = env.ACCOUNT_ID;
   const IMAGES_API_TOKEN = env.IMAGES_API_TOKEN;
 
+if (!env.AI) {
+  return new Response(
+    JSON.stringify({ error: "AI binding not configured" }),
+    { status: 500, headers: { "content-type": "application/json" } }
+  );
+}
+
   // ✅ Validate required environment variables
   if (!ACCOUNT_ID) {
     return new Response(
