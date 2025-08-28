@@ -94,58 +94,59 @@
   }
 
   // Try to load image as blob to bypass CORS
-  async function loadImageAsBlob(imageUrl) {
-    try {
-      showSpinner = true;
-      
-      // If the imageUrl is from imagedelivery.net, convert it to use our proxy
-      let proxyUrl = imageUrl;
-      if (imageUrl.includes('imagedelivery.net')) {
-        // Extract the image ID from the URL
-        const urlParts = imageUrl.split('/');
-        const imageId = urlParts[urlParts.length - 2]; // The ID is before 'public'
-        proxyUrl = `/image/${imageId}/public`; // Use relative path
-        console.log('Using proxy URL:', proxyUrl);
-      }
-      
-      const response = await fetch(proxyUrl);
-      console.log('Proxy response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Proxy response error:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-      }
-      
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      imageBlobUrl = blobUrl;
-      showSpinner = false;
-      return blobUrl;
-    } catch (error) {
-      console.error('Error loading image as blob:', error);
-      imageError = true;
-      showSpinner = false;
-      
-      // If proxy fails, try direct loading as fallback
-      if (imageUrl.includes('imagedelivery.net')) {
-        console.log('Trying direct image loading as fallback');
-        try {
-          const directResponse = await fetch(imageUrl);
-          if (directResponse.ok) {
-            const blob = await directResponse.blob();
-            const blobUrl = URL.createObjectURL(blob);
-            imageBlobUrl = blobUrl;
-            return blobUrl;
-          }
-        } catch (directError) {
-          console.error('Direct loading also failed:', directError);
-        }
-      }
-      
-      return null;
+async function loadImageAsBlob(imageUrl) {
+  try {
+    showSpinner = true;
+    
+    // If the imageUrl is from imagedelivery.net, convert it to use our proxy
+    let proxyUrl = imageUrl;
+    if (imageUrl.includes('imagedelivery.net')) {
+      // Extract the image ID from the URL
+      const urlParts = imageUrl.split('/');
+      const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
+      const variant = urlParts[urlParts.length - 1]; // The last part is the variant
+      proxyUrl = `/image/${imageId}/${variant}`; // Use relative path with variant
+      console.log('Using proxy URL:', proxyUrl);
     }
+    
+    const response = await fetch(proxyUrl);
+    console.log('Proxy response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Proxy response error:', errorText);
+      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+    }
+    
+    const blob = await response.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    imageBlobUrl = blobUrl;
+    showSpinner = false;
+    return blobUrl;
+  } catch (error) {
+    console.error('Error loading image as blob:', error);
+    imageError = true;
+    showSpinner = false;
+    
+    // If proxy fails, try direct loading as fallback
+    if (imageUrl.includes('imagedelivery.net')) {
+      console.log('Trying direct image loading as fallback');
+      try {
+        const directResponse = await fetch(imageUrl);
+        if (directResponse.ok) {
+          const blob = await directResponse.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          imageBlobUrl = blobUrl;
+          return blobUrl;
+        }
+      } catch (directError) {
+        console.error('Direct loading also failed:', directError);
+      }
+    }
+    
+    return null;
   }
+}
 
   // Check image status manually
   function checkImageStatus() {

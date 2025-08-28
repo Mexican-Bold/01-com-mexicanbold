@@ -14,58 +14,85 @@ export async function GET({ params, platform }) {
     }
     
     const imageId = pathParts[0];
+    const variant = pathParts[1] || 'full'; // Default to 'full' variant
     console.log('Extracted image ID:', imageId);
+    console.log('Using variant:', variant);
     
-    // Get ACCOUNT_ID from platform.env
+    // Get credentials from platform.env
     const accountId = platform?.env?.ACCOUNT_ID;
+    const imageDeliveryId = platform?.env?.IMAGE_DELIVERY_ID;
+    const apiToken = platform?.env?.IMAGES_API_TOKEN;
     
     if (!accountId) {
-      console.error('Account ID not configured');
+      console.error('ACCOUNT_ID not configured');
       return new Response('Account ID not configured', { status: 500 });
     }
     
-    console.log('Using Account ID:', accountId);
-    
-    // Try different URL formats
-    const urlsToTry = [
-      `https://imagedelivery.net/${accountId}/${imageId}/public`,
-      `https://imagedelivery.net/${accountId}/${imageId}`,
-      `https://imagedelivery.net/${accountId}/${imageId}/w=400,h=400`
-    ];
-    
-    console.log('Will try these URLs:', urlsToTry);
-    
-    let imageResponse = null;
-    let workingUrl = null;
-    
-    for (const url of urlsToTry) {
-      console.log('Trying URL:', url);
-      try {
-        const response = await fetch(url);
-        console.log('Response status for', url, ':', response.status);
-        
-        if (response.ok) {
-          imageResponse = response;
-          workingUrl = url;
-          console.log('Working URL found:', workingUrl);
-          break;
-        }
-      } catch (error) {
-        console.error('Error fetching', url, ':', error);
-      }
+    if (!imageDeliveryId) {
+      console.error('IMAGE_DELIVERY_ID not configured');
+      return new Response('Image Delivery ID not configured', { status: 500 });
     }
     
-    if (!imageResponse) {
-      console.error('None of the URLs worked');
+    if (!apiToken) {
+      console.error('IMAGES_API_TOKEN not configured');
+      return new Response('API token not configured', { status: 500 });
+    }
+    
+    console.log('Using Account ID:', accountId);
+    console.log('Using Image Delivery ID:', imageDeliveryId);
+    
+    // First, verify the image exists using the API
+    const apiUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/images/v1/${imageId}`;
+    console.log('Checking image existence at:', apiUrl);
+    
+    const apiResponse = await fetch(apiUrl, {
+      headers: {
+        'Authorization': `Bearer ${apiToken}`
+      }
+    });
+    
+    if (!apiResponse.ok) {
+      const errorData = await apiResponse.json();
+      console.error('Image not found in API:', errorData);
       return new Response(JSON.stringify({
-        error: 'Image not found with any URL format',
-        triedUrls: urlsToTry,
-        imageId: imageId,
-        accountId: accountId
+        error: 'Image not found',
+        details: errorData.errors
       }), { 
         status: 404,
         headers: { 'Content-Type': 'application/json' }
       });
+    }
+    
+    const imageData = await apiResponse.json();
+    console.log('Image verified:', imageData.result.id);
+    
+    // Check if the requested variant exists
+    if (!imageData.result.variants.includes(variant)) {
+      console.error('Variant not found:', variant);
+      console.log('Available variants:', imageData.result.variants);
+      return new Response(JSON.stringify({
+        error: 'Variant not found',
+        requestedVariant: variant,
+        availableVariants: imageData.result.variants
+      }), { 
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Construct the Cloudflare Images URL using the Image Delivery ID
+    const imageUrl = `https://imagedelivery.net/${imageDeliveryId}/${imageId}/${variant}`;
+    console.log('Fetching image from:', imageUrl);
+    
+    // Fetch the image from Cloudflare Images
+    const imageResponse = await fetch(imageUrl);
+    console.log('Image response status:', imageResponse.status);
+    
+    if (!imageResponse.ok) {
+      const errorText = await imageResponse.text();
+      console.error('Image not found:', imageUrl, 'Status:', imageResponse.status);
+      console.error('Error response:', errorText);
+      return new Response(`Image not found: ${errorText}`, { status: 404 });
     }
     
     // Create a new response with CORS headers
@@ -80,7 +107,7 @@ export async function GET({ params, platform }) {
     response.headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
     response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
     
-    console.log('Successfully served image with CORS headers from:', workingUrl);
+    console.log('Successfully served image with CORS headers');
     return response;
   } catch (error) {
     console.error('Error in image proxy:', error);
