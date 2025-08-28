@@ -1,4 +1,7 @@
 <script>
+  // Import Anime.js from npm
+  import anime from 'animejs';
+
   // State
   /** @type {File | null} */ let image = null;
   /** @type {string | null} */ let imagePreview = null;
@@ -72,6 +75,7 @@
 
       result = data;
 
+      // ✅ Trigger animation if plan exists
       if (result.animationPlan.length > 0) {
         setTimeout(() => {
           animateFromPlan(result.animationPlan);
@@ -84,10 +88,46 @@
     }
   }
 
-  // Animation placeholder
+  // ✅ Use Anime.js to animate based on the plan
   function animateFromPlan(animations) {
-    console.log("Animation plan received:", animations);
-    // Future: Use Anime.js or GSAP here
+    animations.forEach((anim) => {
+      // 🌀 Wiggle arms
+      if (anim.action === "wiggle" && anim.target.includes("arms")) {
+        anime({
+          targets: '#arm-left, #arm-right',
+          rotate: '15deg',
+          duration: anim.duration || 1000,
+          easing: 'easeInOutSine',
+          loop: true,
+          direction: 'alternate',
+          delay: anime.stagger(100)
+        });
+      }
+
+      // 👁️ Blink eyes
+      if (anim.action === "blink") {
+        anime({
+          targets: '.eye',
+          opacity: [1, 0],
+          duration: 200,
+          easing: 'linear',
+          loop: true,
+          direction: 'alternate',
+          interval: anim.duration || 2000
+        });
+      }
+
+      // 🌿 Grow a vine
+      if (anim.action === "grow" && anim.target.includes("vine")) {
+        anime({
+          targets: '#vine-path',
+          strokeDashoffset: [anime.setDashoffset, 0],
+          duration: anim.duration || 2000,
+          easing: 'easeInOutQuad',
+          loop: false
+        });
+      }
+    });
   }
 </script>
 
@@ -96,7 +136,7 @@
   <p>Upload a hand-drawn PNG and bring it to life with natural language.</p>
 
   <input type="file" accept="image/png" on:change={handleFileInput} />
-  
+
   {#if imagePreview}
     <img src={imagePreview} alt="Preview" style="max-width: 300px; margin: 1rem 0;" />
   {/if}
@@ -116,22 +156,56 @@
 
   {#if result}
     {#if result.imageUrl}
-      <img src={result.imageUrl} alt="Uploaded drawing" style="max-width: 100%; border: 1px solid #ccc; margin: 1rem 0;" />
+      <div style="position: relative; display: inline-block; margin: 1rem 0;">
+        <img src={result.imageUrl} alt="Uploaded drawing" style="max-width: 100%; border: 1px solid #ccc;" />
+
+        <!-- ✅ SVG Overlay for Animation -->
+        <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+          <!-- Left Arm -->
+          {#if result.animationPlan?.some(a => a.target.includes('arms') && a.action === 'wiggle')}
+            <path id="arm-left" d="M100,200 C120,180 140,220 160,200" stroke="green" stroke-width="8" fill="none" />
+          {/if}
+
+          <!-- Right Arm -->
+          {#if result.animationPlan?.some(a => a.target.includes('arms') && a.action === 'wiggle')}
+            <path id="arm-right" d="M300,200 C320,180 340,220 360,200" stroke="green" stroke-width="8" fill="none" />
+          {/if}
+
+          <!-- Eyes -->
+          {#if result.animationPlan?.some(a => a.action === 'blink')}
+            <circle class="eye" cx="180" cy="120" r="10" fill="black" />
+            <circle class="eye" cx="220" cy="120" r="10" fill="black" />
+          {/if}
+
+          <!-- Vine -->
+          {#if result.animationPlan?.some(a => a.target.includes('vine') && a.action === 'grow')}
+            <path id="vine-path"
+                  d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
+                  stroke="green"
+                  stroke-width="6"
+                  fill="none"
+                  stroke-dasharray="100"
+                  stroke-dashoffset="100" />
+          {/if}
+        </svg>
+      </div>
     {/if}
-{#if result.animationPlan.length > 0}
-  <h3>Animation: {result.animationPlan[0].action} {result.animationPlan[0].target}</h3>
-  <pre>{JSON.stringify(result.animationPlan, null, 2)}</pre>
-{:else}
-  <p style="color: #ff9800">
-    No animation generated. AI didn't understand the image or prompt.
-  </p>
-{/if}
+
+    {#if result.animationPlan.length}
+      <h3>Animation Plan</h3>
+      <pre>{JSON.stringify(result.animationPlan, null, 2)}</pre>
+    {:else if result.error}
+      <p style="color: red">Error: {result.error}</p>
+    {:else}
+      <p>No animation generated.</p>
+    {/if}
   {/if}
 </main>
 
 <style>
   main { max-width: 800px; margin: 4rem auto; padding: 0 1rem; }
   img { max-width: 100%; border: 1px solid #ddd; display: block; }
+  svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow: auto; }
   button { padding: 0.5rem 1rem; font-size: 1rem; }
   input[type="file"], input[type="text"] { margin-bottom: 1rem; }

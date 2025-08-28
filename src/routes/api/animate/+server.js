@@ -120,7 +120,7 @@ export async function POST({ request, platform }) {
     const imageUrl = (imageResult.urls?.default || `https://imagedelivery.net/${imageResult.id}/public`).trim();
 
     // --- Step 2: Use LLaVA to describe the image ---
-    let imageDescription = "A hand-drawn character or scene.";
+    let imageDescription = "A simple hand-drawn character or scene.";
     try {
       const imageBytes = new Uint8Array(await imageFile.arrayBuffer());
 
@@ -138,7 +138,7 @@ export async function POST({ request, platform }) {
       }
 
       const desc = String(llavaResponse.response).trim();
-      imageDescription = desc && desc !== "undefined" ? desc : "A hand-drawn character or scene.";
+      imageDescription = desc && desc !== "undefined" ? desc : "A simple hand-drawn character or scene.";
     } catch (err) {
       console.error("LLaVA error:", err);
       imageDescription = "A simple hand-drawn character or scene.";
@@ -171,13 +171,13 @@ Return ONLY JSON.
         8000
       );
 
-      animationPlan = JSON.parse(llamaResponse.response.trim());
+      const raw = llamaResponse.response.trim();
+      animationPlan = JSON.parse(raw);
       if (!Array.isArray(animationPlan)) {
         animationPlan = [animationPlan];
       }
     } catch (err) {
       console.error("LLM parse error:", err);
-      // Optional: try to extract JSON from response
       animationPlan = [];
     }
 
