@@ -118,52 +118,58 @@ export async function POST({ request, platform }) {
       );
     }
 
-    const imageUrl =
-      imageResult.urls?.default || `https://imagedelivery.net/${imageResult.id}/public`;
-
+    const imageUrl = (imageResult.urls?.default || `https://imagedelivery.net/${imageResult.id}/public`).trim();
+	  
     // --- Step 2: Use LLaVA to describe the image ---
-    let imageDescription = "No description generated";
-    try {
-      const imageBytes = new Uint8Array(await imageFile.arrayBuffer());
+let imageDescription = "A hand-drawn character or scene.";
+try {
+  const imageBytes = new Uint8Array(await imageFile.arrayBuffer());
 
-      const llavaResponse = await withTimeout(
-        env.AI.run("@cf/llava-hf/llava-1.5-7b-hf", {
-          prompt:
-            "Describe this image in detail. Identify objects that could animate: eyes, vines, flowers, limbs, etc. Note their positions.",
-          image: [...imageBytes],
-        }),
-        8000
-      );
+  const llavaResponse = await withTimeout(
+    env.AI.run("@cf/llava-hf/llava-1.5-7b-hf", {
+      prompt:
+        "Describe this hand-drawn image in detail. Identify any parts that could animate: eyes, arms, vines, flowers, etc. Be specific about positions and colors.",
+      image: [...imageBytes],
+    }),
+    8000
+  );
 
-      imageDescription = String(llavaResponse.response).trim();
-    } catch (err) {
-      return new Response(
-        JSON.stringify({
-          error: "LLaVA AI failed",
-          message: err.message,
-          hint: "Try a smaller image or check AI binding"
-        }),
-        { status: 500, headers: { "content-type": "application/json" } }
-      );
-    }
+  // ✅ Ensure response is valid
+  if (!llavaResponse || !llavaResponse.response) {
+    throw new Error("LLaVA returned empty response");
+  }
+
+  imageDescription = String(llavaResponse.response).trim();
+  if (!imageDescription || imageDescription === "undefined") {
+    imageDescription = "A simple hand-drawn character or scene.";
+  }
+} catch (err) {
+  console.error("LLaVA error:", err);
+  // ✅ Fallback description
+  imageDescription = "A hand-drawn character with parts that could animate.";
+}
 
     // --- Step 3: Use Llama 3 to generate animation plan ---
     let animationPlan;
-    try {
-      const llamaPrompt = `
+const llamaPrompt = `
 You are an animation director for hand-drawn art. Given:
 Image: "${imageDescription}"
 Request: "${prompt}"
 
+Even if the image description is vague, try to interpret the request.
+
 Generate a JSON animation plan with:
-- target: object to animate (e.g., "left eye", "vine from ear")
+- target: object to animate (e.g., "left eye", "vine from ear", "green arms")
 - action: "blink", "grow", "wiggle", "pulse", "sway"
 - duration: in milliseconds
 - origin: where motion starts
 - notes: for animator
 
+If unsure, make a best guess based on the prompt.
+
 Return ONLY JSON.
-      `.trim();
+`.trim();
+
 
       const llamaResponse = await withTimeout(
         env.AI.run("@cf/meta/llama-3-8b-instruct", { prompt: llamaPrompt }),

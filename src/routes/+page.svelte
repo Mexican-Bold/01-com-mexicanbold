@@ -1,11 +1,21 @@
 <script>
   // State
   /** @type {File | null} */ let image = null;
+  /** @type {string | null} */ let imagePreview = null;
   /** @type {string} */ let prompt = "";
   /** @type {Object | null} */ let result = null;
   /** @type {boolean} */ let isProcessing = false;
 
-  // ✅ Resize image before upload
+  // Handle file input and create local preview
+  function handleFileInput(e) {
+    const file = e.target.files?.[0];
+    if (file) {
+      image = file;
+      imagePreview = URL.createObjectURL(file);
+    }
+  }
+
+  // Resize image to prevent Worker timeout
   async function resizeImage(file) {
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -35,9 +45,13 @@
     });
   }
 
-  // ✅ Submit form
+  // Submit form
   async function submit() {
-    if (!image || !prompt) return;
+    if (!image || !prompt) {
+      alert("Please upload an image and enter a prompt.");
+      return;
+    }
+
     isProcessing = true;
 
     try {
@@ -46,18 +60,19 @@
       formData.append("image", resizedImage, "drawing.png");
       formData.append("prompt", prompt);
 
-      const res = await fetch("/api/animate", { method: "POST", body: formData });
-      const data = await res.json();
+      const res = await fetch("/api/animate", {
+        method: "POST",
+        body: formData,
+      });
 
-      // ✅ Normalize animationPlan to always be an array
-      if (data.animationPlan && !Array.isArray(data.animationPlan)) {
+      const data = await res.json();
+      if (!Array.isArray(data.animationPlan)) {
         data.animationPlan = [];
       }
 
       result = data;
 
-      // ✅ Only animate if we have valid array
-      if (Array.isArray(result.animationPlan) && result.animationPlan.length > 0) {
+      if (result.animationPlan.length > 0) {
         setTimeout(() => {
           animateFromPlan(result.animationPlan);
         }, 100);
@@ -69,35 +84,10 @@
     }
   }
 
-  // ✅ Animate using the plan
+  // Animation placeholder
   function animateFromPlan(animations) {
-    // ✅ Only proceed if animations is an array
-    if (!Array.isArray(animations)) return;
-
-    animations.forEach((anim) => {
-      if (anim.action === "wiggle" && anim.target.includes("arms")) {
-        anime({
-          targets: '#arm-left, #arm-right',
-          rotate: '10deg',
-          duration: anim.duration || 1000,
-          easing: 'easeInOutSine',
-          loop: true,
-          direction: 'alternate',
-          delay: anime.stagger(100)
-        });
-      }
-      if (anim.action === "blink") {
-        anime({
-          targets: '.eye',
-          opacity: [1, 0],
-          duration: 200,
-          easing: 'linear',
-          loop: true,
-          direction: 'alternate',
-          interval: anim.duration || 2000
-        });
-      }
-    });
+    console.log("Animation plan received:", animations);
+    // Future: Use Anime.js or GSAP here
   }
 </script>
 
@@ -105,8 +95,13 @@
   <h1>Animate My Drawing</h1>
   <p>Upload a hand-drawn PNG and bring it to life with natural language.</p>
 
-  <input type="file" accept="image/png" on:change={(e) => (image = e.target.files?.[0] || null)} />
-  <br /><br />
+  <input type="file" accept="image/png" on:change={handleFileInput} />
+  
+  {#if imagePreview}
+    <img src={imagePreview} alt="Preview" style="max-width: 300px; margin: 1rem 0;" />
+  {/if}
+
+  <br />
   <label>
     <input
       type="text"
@@ -120,27 +115,24 @@
   </button>
 
   {#if result}
-    <div id="result">
-      <img src={result.imageUrl} alt="Uploaded drawing" style="max-width: 100%; border: 1px solid #ccc;" />
-
-      <!-- ✅ Overlay SVG for animation -->
-      {#if Array.isArray(result.animationPlan) && result.animationPlan.some(a => a.target.includes('arms'))}
-        <svg style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
-          <path id="arm-left" d="M100,200 C120,180 140,220 160,200" stroke="green" stroke-width="8" fill="none" />
-          <path id="arm-right" d="M300,200 C320,180 340,220 360,200" stroke="green" stroke-width="8" fill="none" />
-        </svg>
-      {/if}
-
-      <h3>Animation Plan</h3>
-      <pre>{JSON.stringify(result.animationPlan, null, 2)}</pre>
-    </div>
+    {#if result.imageUrl}
+      <img src={result.imageUrl} alt="Uploaded drawing" style="max-width: 100%; border: 1px solid #ccc; margin: 1rem 0;" />
+    {/if}
+{#if result.animationPlan.length > 0}
+  <h3>Animation: {result.animationPlan[0].action} {result.animationPlan[0].target}</h3>
+  <pre>{JSON.stringify(result.animationPlan, null, 2)}</pre>
+{:else}
+  <p style="color: #ff9800">
+    No animation generated. AI didn't understand the image or prompt.
+  </p>
+{/if}
   {/if}
 </main>
 
 <style>
-  main { max-width: 800px; margin: 4rem auto; padding: 0 1rem; position: relative; }
+  main { max-width: 800px; margin: 4rem auto; padding: 0 1rem; }
   img { max-width: 100%; border: 1px solid #ddd; display: block; }
-  svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
   pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow: auto; }
   button { padding: 0.5rem 1rem; font-size: 1rem; }
+  input[type="file"], input[type="text"] { margin-bottom: 1rem; }
 </style>
