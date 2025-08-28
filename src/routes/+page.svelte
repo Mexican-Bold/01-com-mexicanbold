@@ -90,20 +90,18 @@
   }
 
   // ✅ Use Anime.js to animate based on the plan
-  function animateFromPlan(animations) {
-    animations.forEach((anim) => {
-      // 🌀 Wiggle arms
-      if (anim.action === "wiggle" && anim.target.includes("arms")) {
-        anime({
-          targets: '#arm-left, #arm-right',
-          rotate: '15deg',
-          duration: anim.duration || 1000,
-          easing: 'easeInOutSine',
-          loop: true,
-          direction: 'alternate',
-          delay: anime.stagger(100)
-        });
-      }
+function animateFromPlan(animations) {
+  animations.forEach((anim) => {
+    if (!anim.target || !anim.action) return;
+
+    if (anim.action === "wiggle" && anim.target.includes("arms")) {
+      anime({ targets: '#arm-left, #arm-right', rotate: '15deg', duration: anim.duration || 1000, loop: true, direction: 'alternate' });
+    }
+    if (anim.action === "blink") {
+      anime({ targets: '.eye', opacity: [1, 0], duration: 200, loop: true, direction: 'alternate' });
+    }
+  });
+}
 
       // 👁️ Blink eyes
       if (anim.action === "blink") {
@@ -177,6 +175,10 @@
             <circle class="eye" cx="180" cy="120" r="10" fill="black" />
             <circle class="eye" cx="220" cy="120" r="10" fill="black" />
           {/if}
+
+{#if result.animationPlan?.some(a => a.target && a.target.includes('arms') && a.action === 'wiggle')}
+  <path id="arm-left" d="..." stroke="green" stroke-width="8" fill="none" />
+{/if}
 
           <!-- Vine -->
           {#if result.animationPlan?.some(a => a.target.includes('vine') && a.action === 'grow')}

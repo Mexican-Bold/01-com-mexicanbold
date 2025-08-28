@@ -145,9 +145,9 @@ export async function POST({ request, platform }) {
     }
 
     // --- Step 3: Use Llama 3 to generate animation plan ---
-    let animationPlan = [];
-    try {
-      const llamaPrompt = `
+	let animationPlan = [];
+try {
+  const llamaPrompt = `
 You are an animation director for hand-drawn art. Given:
 Image: "${imageDescription}"
 Request: "${prompt}"
@@ -161,10 +161,52 @@ Generate a JSON animation plan with:
 - origin: where motion starts
 - notes: for animator
 
-If unsure, make a best guess based on the prompt.
+Return ONLY a flat JSON **array** of animation objects. Do not nest them.
+
+Example:
+[
+  { "target": "green arms", "action": "wiggle", "duration": 1000 }
+]
 
 Return ONLY JSON.
-      `.trim();
+  `.trim();
+
+  const llamaResponse = await withTimeout(
+    env.AI.run("@cf/meta/llama-3-8b-instruct", { prompt: llamaPrompt }),
+    8000
+  );
+
+  const raw = llamaResponse.response.trim();
+
+  // ✅ Parse and normalize the response
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (parseErr) {
+    console.error("Failed to parse LLM response as JSON:", raw);
+    animationPlan = [];
+    return;
+  }
+
+  // ✅ Normalize nested structures: { animations: [...] }
+  if (Array.isArray(parsed) && parsed.length > 0 && 'animations' in parsed[0]) {
+    animationPlan = parsed.flatMap(group => Array.isArray(group.animations) ? group.animations : []);
+  }
+  // ✅ Handle single object response
+  else if (!Array.isArray(parsed)) {
+    animationPlan = [parsed];
+  }
+  // ✅ Handle normal array
+  else {
+    animationPlan = parsed;
+  }
+
+  // ✅ Final safety: ensure all items are valid objects with target/action
+  animationPlan = animationPlan.filter(item => item && typeof item === 'object');
+} catch (err) {
+  console.error("LLM processing error:", err);
+  animationPlan = [];
+}
 
       const llamaResponse = await withTimeout(
         env.AI.run("@cf/meta/llama-3-8b-instruct", { prompt: llamaPrompt }),
