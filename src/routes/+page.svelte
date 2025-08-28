@@ -195,86 +195,94 @@ async function loadImageAsBlob(imageUrl) {
   }
 
   // Submit form
-  async function submit() {
-    if (!image && !selectedImageId) {
-      alert("Please upload an image or select a saved one.");
-      return;
-    }
+// Submit form
+async function submit() {
+  if (!image && !selectedImageId) {
+    alert("Please upload an image or select a saved one.");
+    return;
+  }
 
-    if (!prompt) {
-      alert("Please enter an animation request.");
-      return;
-    }
+  if (!prompt) {
+    alert("Please enter an animation request.");
+    return;
+  }
 
-    isProcessing = true;
-    imageLoaded = false;
-    imageError = false;
-    pendingAnimations = null;
-    showSpinner = true;
-    imageBlobUrl = null;
+  isProcessing = true;
+  imageLoaded = false;
+  imageError = false;
+  pendingAnimations = null;
+  showSpinner = true;
+  imageBlobUrl = null;
 
-    try {
-      let formData = new FormData();
-      
-      if (selectedImageId) {
-        // Use saved image
-        const savedImage = savedImages.find(img => img.id === selectedImageId);
-        if (savedImage) {
-          formData.append("imageId", selectedImageId);
-          formData.append("prompt", prompt);
-        }
-      } else {
-        // Upload new image
-        const resizedImage = await resizeImage(image);
-        formData.append("image", resizedImage, image.name); // Use original filename
+  try {
+    let formData = new FormData();
+    
+    if (selectedImageId) {
+      // Use saved image
+      const savedImage = savedImages.find(img => img.id === selectedImageId);
+      if (savedImage) {
+        formData.append("imageId", selectedImageId);
         formData.append("prompt", prompt);
       }
+    } else {
+      // Upload new image
+      const resizedImage = await resizeImage(image);
+      formData.append("image", resizedImage, image.name);
+      formData.append("prompt", prompt);
+    }
 
-      const res = await fetch("/api/animate", {
-        method: "POST",
-        body: formData,
-      });
+    const res = await fetch("/api/animate", {
+      method: "POST",
+      body: formData,
+    });
 
-      const data = await res.json();
-      if (!Array.isArray(data.animationPlan)) {
-        data.animationPlan = [];
+    const data = await res.json();
+    if (!Array.isArray(data.animationPlan)) {
+      data.animationPlan = [];
+    }
+
+    result = data;
+    console.log('Animation result received:', result);
+
+    // Save image to saved images if it's a new upload
+    if (data.imageId && !selectedImageId) {
+      const newImage = {
+        id: data.imageId,
+        name: image.name,
+        url: data.imageUrl,
+        date: new Date().toISOString()
+      };
+      
+      // Check if image is already saved
+      if (!savedImages.some(img => img.id === data.imageId)) {
+        savedImages = [newImage, ...savedImages];
+        localStorage.setItem('savedImages', JSON.stringify(savedImages));
       }
-
-      result = data;
-      console.log('Animation result received:', result);
-
-      // Save image to saved images if it's a new upload
-      if (data.imageId && !selectedImageId) {
-        const newImage = {
-          id: data.imageId,
-          name: image.name,
-          url: data.imageUrl,
-          date: new Date().toISOString()
-        };
-        
-        // Check if image is already saved
-        if (!savedImages.some(img => img.id === data.imageId)) {
-          savedImages = [newImage, ...savedImages];
-          localStorage.setItem('savedImages', JSON.stringify(savedImages));
-        }
-      }
-// In the submit function, replace the relevant part with this:
+    }
 
 if (result.animationPlan.length > 0) {
   console.log('Animation plan:', result.animationPlan);
   pendingAnimations = result.animationPlan;
   
-  if (result.imageUrl) {
-    // Try to load the image
-    const blobUrl = await loadImageAsBlob(result.imageUrl);
-    if (blobUrl) {
-      result.imageUrl = blobUrl;
-    } else {
-      console.log('Image loading failed, will run animations after timeout');
-    }
+  // Immediately replace the imageUrl with the proxy URL
+if (result.imageUrl) {
+  // Extract the image ID from the URL
+  const urlParts = result.imageUrl.split('/');
+  const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
+  let variant = urlParts[urlParts.length - 1]; // The last part is the variant
+ 
+  // If the variant is "public" (which doesn't exist), use "full" instead
+  if (variant === 'public') {
+    variant = 'full';
+    console.log('Replacing "public" variant with "full"');
   }
   
-  // Force animations to run after 2 seconds regardless of image loading
+  // Replace the imageUrl with the proxy URL
+  result.imageUrl = `/image/${imageId}/${variant}`;
+  console.log('Replaced imageUrl with proxy URL:', result.imageUrl);
+}   
+  
+  // Force animations to run after 1.5 seconds regardless of image loading
   setTimeout(() => {
     if (pendingAnimations && anime) {
       console.log('Forcing animations to run after timeout');
@@ -282,21 +290,22 @@ if (result.animationPlan.length > 0) {
       animateFromPlan(pendingAnimations);
       pendingAnimations = null;
     }
-  }, 2000);
+  }, 1500);
   
   // Check if image is already loaded
   setTimeout(checkImageStatus, 100);
 } else {
-        showSpinner = false;
-      }
-    } catch (err) {
-      result = { error: "Request failed", message: err.message };
-      console.error('Request error:', err);
-      showSpinner = false;
-    } finally {
-      isProcessing = false;
-    }
+  showSpinner = false;
+}
+
+  } catch (err) {
+    result = { error: "Request failed", message: err.message };
+    console.error('Request error:', err);
+    showSpinner = false;
+  } finally {
+    isProcessing = false;
   }
+}
 
 // Animation function
 function animateFromPlan(animations) {

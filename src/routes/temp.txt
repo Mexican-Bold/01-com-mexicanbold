@@ -1,0 +1,22 @@
+// Try to load image as blob to bypass CORS
+async function loadImageAsBlob(imageUrl) {
+  try {
+    showSpinner = true;
+    
+    // If the imageUrl is from imagedelivery.net, convert it to use our proxy
+    let proxyUrl = imageUrl;
+    if (imageUrl.includes('imagedelivery.net')) {
+      // Extract the image ID from the URL
+      const urlParts = imageUrl.split('/');
+      const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
+      let variant = urlParts[urlParts.length - 1]; // The last part is the variant
+      
+      // If the variant is "public" (which doesn't exist), use "full" instead
+      if (variant === 'public') {
+        variant = 'full';
+        console.log('Replacing "public" variant with "full"');
+      }
+      
+      proxyUrl = `/image/${imageId}/${variant}`; // Use relative path with variant
+      console.log('Using proxy URL:', proxyUrl);
+    }
