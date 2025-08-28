@@ -148,27 +148,38 @@ export async function POST({ request, platform }) {
     let animationPlan = [];
     try {
       const llamaPrompt = `
-You are an animation director for hand-drawn art. Given:
-Image: "${imageDescription}"
-Request: "${prompt}"
+You are an animation director for hand-drawn art. 
 
-Even if the image description is vague, try to interpret the request.
+Image description: "${imageDescription}"
+User request: "${prompt}"
 
-Generate a JSON animation plan with:
-- target: object to animate (e.g., "left eye", "vine from ear", "green arms")
-- action: "blink", "grow", "wiggle", "pulse", "sway"
-- duration: in milliseconds
-- origin: where motion starts
-- notes: for animator
+IMPORTANT: Even if the image description is vague or generic, you MUST create animations based on the user's request. Make reasonable assumptions about what could be animated.
 
-Return ONLY a flat JSON **array** of animation objects. Do not nest them.
+For the request "${prompt}", generate realistic animation targets and actions:
 
-Example:
+Common animation targets for drawings:
+- arms, hands, legs, body parts
+- eyes, mouth, facial features  
+- plants, vines, flowers, leaves
+- hair, clothing, accessories
+- geometric shapes, lines, circles
+
+Available actions:
+- "wiggle": slight back and forth motion
+- "blink": appear/disappear rapidly
+- "grow": expand or extend over time
+- "pulse": scale up and down
+- "sway": gentle swaying motion
+- "bounce": up and down movement
+
+Create 1-3 animation objects. Return ONLY valid JSON array format:
+
 [
-  { "target": "green arms", "action": "wiggle", "duration": 1000 }
+  { "target": "arms", "action": "wiggle", "duration": 1000, "notes": "wiggle the arm-like parts" },
+  { "target": "eyes", "action": "blink", "duration": 500, "notes": "blink any circular eye-like shapes" }
 ]
 
-Return ONLY JSON.
+Return ONLY the JSON array, no other text.
       `.trim();
 
       const llamaResponse = await withTimeout(
@@ -182,10 +193,33 @@ Return ONLY JSON.
       // Parse and normalize the response
       let parsed;
       try {
-        parsed = JSON.parse(raw);
+        // Clean the response - sometimes LLMs add extra text
+        let cleanResponse = raw;
+        
+        // Try to extract JSON if there's extra text
+        const jsonMatch = raw.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          cleanResponse = jsonMatch[0];
+        }
+        
+        parsed = JSON.parse(cleanResponse);
       } catch (parseErr) {
         console.error("Failed to parse LLM response as JSON:", raw);
-        animationPlan = [];
+        // Fallback: create a default animation based on the prompt
+        if (prompt.toLowerCase().includes('wiggle') && prompt.toLowerCase().includes('arms')) {
+          animationPlan = [
+            { "target": "arms", "action": "wiggle", "duration": 1000, "notes": "fallback wiggle animation" }
+          ];
+        } else if (prompt.toLowerCase().includes('blink')) {
+          animationPlan = [
+            { "target": "eyes", "action": "blink", "duration": 500, "notes": "fallback blink animation" }
+          ];
+        } else {
+          animationPlan = [
+            { "target": "main element", "action": "pulse", "duration": 800, "notes": "generic fallback animation" }
+          ];
+        }
+        console.log("Using fallback animation:", animationPlan);
       }
 
       if (parsed) {
