@@ -3,6 +3,7 @@
   let anime;
   let imageLoaded = false;
   let pendingAnimations = null;
+  let showSpinner = false;
   
   import { onMount } from 'svelte';
   
@@ -36,6 +37,7 @@
   /** @type {string} */ let prompt = "";
   /** @type {Object | null} */ let result = null;
   /** @type {boolean} */ let isProcessing = false;
+  /** @type {boolean} */ let imageError = false;
 
   // Handle file input and create local preview
   function handleFileInput(e) {
@@ -49,6 +51,8 @@
   // Handle image load event
   function handleImageLoad() {
     imageLoaded = true;
+    imageError = false;
+    showSpinner = false;
     console.log('Image loaded, ready for animation');
     // If we have pending animations, run them now
     if (pendingAnimations && anime) {
@@ -59,7 +63,20 @@
     }
   }
 
-  // NEW: Check image status manually
+  // NEW: Handle image error
+  function handleImageError() {
+    console.error('Image failed to load');
+    imageError = true;
+    showSpinner = false;
+    // Try to run animations anyway
+    if (pendingAnimations && anime) {
+      imageLoaded = true; // Force set to true
+      animateFromPlan(pendingAnimations);
+      pendingAnimations = null;
+    }
+  }
+
+  // Check image status manually
   function checkImageStatus() {
     const img = document.querySelector('.main-image');
     if (img && img.complete && img.naturalHeight !== 0) {
@@ -107,7 +124,9 @@
 
     isProcessing = true;
     imageLoaded = false; // Reset image loaded state
+    imageError = false; // Reset error state
     pendingAnimations = null;
+    showSpinner = true; // Show spinner when submitting
 
     try {
       const resizedImage = await resizeImage(image);
@@ -133,10 +152,10 @@
         console.log('Animation plan:', result.animationPlan);
         pendingAnimations = result.animationPlan;
         
-        // NEW: Check if image is already loaded
+        // Check if image is already loaded
         setTimeout(checkImageStatus, 100);
         
-        // NEW: Set a fallback timeout in case image loading fails
+        // Set a fallback timeout in case image loading fails
         setTimeout(() => {
           if (pendingAnimations && anime) {
             console.log('Running animations as fallback after timeout');
@@ -153,10 +172,14 @@
             pendingAnimations = null;
           }, 500);
         }
+      } else {
+        // No animations, so hide spinner
+        showSpinner = false;
       }
     } catch (err) {
       result = { error: "Request failed", message: err.message };
       console.error('Request error:', err);
+      showSpinner = false;
     } finally {
       isProcessing = false;
     }
@@ -183,7 +206,7 @@
     
     console.log('Starting animations:', animations);
     
-    // NEW: Enhanced debugging
+    // Enhanced debugging
     setTimeout(() => {
       const allTargets = document.querySelectorAll('[data-animation-target], #arm-left, #arm-right, .eye, #vine-path');
       console.log('All available animation targets:', allTargets);
@@ -372,22 +395,29 @@
       <div class="result-container">
         <h3>Your Animated Drawing</h3>
         <div class="image-container">
-          <img 
-            src={result.imageUrl} 
-            alt="Uploaded drawing" 
-            class="main-image"
-            on:load={handleImageLoad}
-            on:error={() => {
-              console.error('Image failed to load');
-              // Try to run animations anyway
-              if (pendingAnimations && anime) {
-                imageLoaded = true; // Force set to true
-                animateFromPlan(pendingAnimations);
-                pendingAnimations = null;
-              }
-            }}
-            crossorigin="anonymous"
-          />
+          <!-- Spinner overlay -->
+          {#if showSpinner}
+            <div class="spinner-overlay">
+              <div class="spinner"></div>
+              <p>Loading your animation...</p>
+            </div>
+          {/if}
+          
+          <!-- Image or placeholder -->
+          {#if imageError}
+            <div class="image-placeholder">
+              <p>Image couldn't be loaded, but animations are still running!</p>
+            </div>
+          {:else}
+            <img 
+              src={result.imageUrl} 
+              alt="Uploaded drawing" 
+              class="main-image"
+              on:load={handleImageLoad}
+              on:error={handleImageError}
+              crossorigin="anonymous"
+            />
+          {/if}
 
           <!-- ✅ SVG Overlay for Animation - Always render animation elements -->
           <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
@@ -492,7 +522,7 @@
 
         <!-- Debug info -->
         <div class="debug-info" style="margin-top: 1rem; padding: 0.5rem; background: #f0f0f0; font-size: 0.8rem; color: #666;">
-          <p><strong>Debug:</strong> Image loaded: {imageLoaded}, Anime ready: {!!anime}, Pending: {!!pendingAnimations}</p>
+          <p><strong>Debug:</strong> Image loaded: {imageLoaded}, Anime ready: {!!anime}, Pending: {!!pendingAnimations}, Image error: {imageError}</p>
         </div>
       </div>
     {/if}
@@ -515,6 +545,8 @@
     border-radius: 8px;
     overflow: hidden;
     background: #fafafa;
+    min-height: 400px;
+    min-width: 400px;
   }
   
   .main-image { 
@@ -529,6 +561,47 @@
     width: 100%; 
     height: 100%; 
     pointer-events: none; 
+  }
+  
+  .spinner-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+  }
+  
+  .spinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 4px solid #007acc;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  
+  .image-placeholder {
+    width: 100%;
+    height: 400px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #f5f5f5;
+    color: #666;
+    text-align: center;
+    padding: 1rem;
   }
   
   .error {
@@ -607,5 +680,3 @@
     margin-top: 1rem;
   }
 </style>
-
-
