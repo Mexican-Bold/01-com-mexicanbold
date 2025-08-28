@@ -7,22 +7,27 @@
 export async function POST({ request, platform }) {
   const env = platform.env;
 
-  // Validate environment
-  if (!env.ACCOUNT_ID) {
+  // ✅ STEP 1: Extract and validate environment variables early
+  const ACCOUNT_ID = env.ACCOUNT_ID;
+  const IMAGES_API_TOKEN = env.IMAGES_API_TOKEN;
+
+  if (!ACCOUNT_ID) {
     return new Response(
-      JSON.stringify({ error: "Server misconfigured: ACCOUNT_ID missing" }),
+      JSON.stringify({ error: "Server error: ACCOUNT_ID is not configured" }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
-  if (!env.IMAGES_API_TOKEN) {
+
+  if (!IMAGES_API_TOKEN) {
     return new Response(
-      JSON.stringify({ error: "Server misconfigured: IMAGES_API_TOKEN missing" }),
+      JSON.stringify({ error: "Server error: IMAGES_API_TOKEN is not configured" }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
+
   if (!env.AI) {
     return new Response(
-      JSON.stringify({ error: "Server misconfigured: AI binding missing" }),
+      JSON.stringify({ error: "Server error: AI binding is not configured" }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
   }
@@ -34,29 +39,29 @@ export async function POST({ request, platform }) {
 
     if (!imageFile || !prompt) {
       return new Response(
-        JSON.stringify({ error: "Missing image or prompt" }),
+        JSON.stringify({ error: "Missing required fields: image or prompt" }),
         { status: 400, headers: { "content-type": "application/json" } }
       );
     }
 
     if (!(imageFile instanceof File)) {
       return new Response(
-        JSON.stringify({ error: "Invalid image file" }),
+        JSON.stringify({ error: "Invalid image file provided" }),
         { status: 400, headers: { "content-type": "application/json" } }
       );
     }
 
-    // --- Step 1: Upload to Cloudflare Images ---
+    // --- STEP 2: Upload to Cloudflare Images ---
     let imageResult;
     try {
       const imageBuffer = await imageFile.arrayBuffer();
 
       const response = await fetch(
-        `https://api.cloudflare.com/client/v4/accounts/${env.ACCOUNT_ID}/images/v1`,
+        `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/images/v1`,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${env.IMAGES_API_TOKEN}`,
+            Authorization: `Bearer ${IMAGES_API_TOKEN}`,
           },
           body: imageBuffer,
         }
@@ -69,7 +74,7 @@ export async function POST({ request, platform }) {
           JSON.stringify({
             error: "Image upload failed",
             details: data.errors,
-            response: data,
+            message: "Failed to upload image to Cloudflare Images",
           }),
           { status: 500, headers: { "content-type": "application/json" } }
         );
@@ -90,20 +95,23 @@ export async function POST({ request, platform }) {
     const imageUrl =
       imageResult.urls?.default || `https://imagedelivery.net/${imageResult.id}/public`;
 
-    // --- Step 2: Use LLaVA to describe the image ---
+    // --- STEP 3: Use LLaVA to describe the image ---
     let imageDescription = "No description generated";
     try {
+      // Re-read buffer (safe because we're not reusing the stream)
       const imageBytes = new Uint8Array(await imageFile.arrayBuffer());
+
       const llavaResponse = await env.AI.run("@cf/llava-hf/llava-1.5-7b-hf", {
         prompt:
           "Describe this image in detail. Identify objects that could animate: eyes, vines, flowers, limbs, etc. Note their positions.",
         image: [...imageBytes],
       });
+
       imageDescription = String(llavaResponse.response).trim();
     } catch (err) {
       return new Response(
         JSON.stringify({
-          error: "LLaVA AI failed",
+          error: "AI image analysis failed",
           message: err.message,
           stack: err.stack,
         }),
@@ -111,7 +119,7 @@ export async function POST({ request, platform }) {
       );
     }
 
-    // --- Step 3: Use Llama 3 to generate animation plan ---
+    // --- STEP 4: Use Llama 3 to generate animation plan ---
     let animationPlan;
     try {
       const llamaPrompt = `
@@ -135,15 +143,15 @@ Return ONLY JSON.
 
       animationPlan = JSON.parse(llamaResponse.response.trim());
     } catch (err) {
-      // Fallback if JSON fails
+      // Fallback if LLM doesn't return valid JSON
       animationPlan = {
-        raw: llamaResponse?.response || "Failed to generate",
-        warning: "LLM did not return valid JSON",
+        raw: llamaResponse?.response || "LLM output not available",
+        warning: "Failed to parse animation plan as JSON",
         parseError: err.message,
       };
     }
 
-    // ✅ Return success
+    // ✅ Return success response
     return new Response(
       JSON.stringify({
         imageUrl,
@@ -155,12 +163,13 @@ Return ONLY JSON.
       { headers: { "content-type": "application/json" } }
     );
   } catch (err) {
-    // 🚨 Catch any unexpected top-level error
+    // 🚨 Final fallback for any uncaught error
     return new Response(
       JSON.stringify({
         error: "Unexpected server error",
         message: err.message,
-        stack: err.stack,
+        stack: err.stack || "No stack trace available",
+        ...(err.cause && { cause: err.cause }),
       }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
