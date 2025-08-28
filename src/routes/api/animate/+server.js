@@ -7,7 +7,7 @@
 export async function POST({ request, platform }) {
   const env = platform.env;
 
-  // ✅ Validate required environment variables
+  // ✅ Validate environment
   const ACCOUNT_ID = env.ACCOUNT_ID;
   const IMAGES_API_TOKEN = env.IMAGES_API_TOKEN;
 
@@ -68,7 +68,6 @@ export async function POST({ request, platform }) {
       const boundary = '----CloudflareWorkerFormBoundary' + Math.random().toString(16);
       const crlf = '\r\n';
 
-      // Construct the multipart body
       const formDataBlob = new Blob([
         crlf + `--${boundary}${crlf}` +
         `Content-Disposition: form-data; name="file"; filename="drawing.png"${crlf}` +
@@ -119,39 +118,36 @@ export async function POST({ request, platform }) {
     }
 
     const imageUrl = (imageResult.urls?.default || `https://imagedelivery.net/${imageResult.id}/public`).trim();
-	  
+
     // --- Step 2: Use LLaVA to describe the image ---
-let imageDescription = "A hand-drawn character or scene.";
-try {
-  const imageBytes = new Uint8Array(await imageFile.arrayBuffer());
+    let imageDescription = "A hand-drawn character or scene.";
+    try {
+      const imageBytes = new Uint8Array(await imageFile.arrayBuffer());
 
-  const llavaResponse = await withTimeout(
-    env.AI.run("@cf/llava-hf/llava-1.5-7b-hf", {
-      prompt:
-        "Describe this hand-drawn image in detail. Identify any parts that could animate: eyes, arms, vines, flowers, etc. Be specific about positions and colors.",
-      image: [...imageBytes],
-    }),
-    8000
-  );
+      const llavaResponse = await withTimeout(
+        env.AI.run("@cf/llava-hf/llava-1.5-7b-hf", {
+          prompt:
+            "Describe this hand-drawn image in detail. Identify any parts that could animate: eyes, arms, vines, flowers, etc. Be specific about positions and colors.",
+          image: [...imageBytes],
+        }),
+        8000
+      );
 
-  // ✅ Ensure response is valid
-  if (!llavaResponse || !llavaResponse.response) {
-    throw new Error("LLaVA returned empty response");
-  }
+      if (!llavaResponse || !llavaResponse.response) {
+        throw new Error("LLaVA returned empty response");
+      }
 
-  imageDescription = String(llavaResponse.response).trim();
-  if (!imageDescription || imageDescription === "undefined") {
-    imageDescription = "A simple hand-drawn character or scene.";
-  }
-} catch (err) {
-  console.error("LLaVA error:", err);
-  // ✅ Fallback description
-  imageDescription = "A hand-drawn character with parts that could animate.";
-}
+      const desc = String(llavaResponse.response).trim();
+      imageDescription = desc && desc !== "undefined" ? desc : "A hand-drawn character or scene.";
+    } catch (err) {
+      console.error("LLaVA error:", err);
+      imageDescription = "A simple hand-drawn character or scene.";
+    }
 
     // --- Step 3: Use Llama 3 to generate animation plan ---
-    let animationPlan;
-const llamaPrompt = `
+    let animationPlan = [];
+    try {
+      const llamaPrompt = `
 You are an animation director for hand-drawn art. Given:
 Image: "${imageDescription}"
 Request: "${prompt}"
@@ -168,8 +164,7 @@ Generate a JSON animation plan with:
 If unsure, make a best guess based on the prompt.
 
 Return ONLY JSON.
-`.trim();
-
+      `.trim();
 
       const llamaResponse = await withTimeout(
         env.AI.run("@cf/meta/llama-3-8b-instruct", { prompt: llamaPrompt }),
@@ -177,12 +172,16 @@ Return ONLY JSON.
       );
 
       animationPlan = JSON.parse(llamaResponse.response.trim());
+      if (!Array.isArray(animationPlan)) {
+        animationPlan = [animationPlan];
+      }
     } catch (err) {
-      // ✅ Always return an array, even on error
+      console.error("LLM parse error:", err);
+      // Optional: try to extract JSON from response
       animationPlan = [];
     }
 
-    // ✅ Return success response
+    // ✅ Return success
     return new Response(
       JSON.stringify({
         imageUrl,
@@ -194,12 +193,11 @@ Return ONLY JSON.
       { headers: { "content-type": "application/json" } }
     );
   } catch (err) {
-    // 🚨 Final fallback for any uncaught error
     return new Response(
       JSON.stringify({
         error: "Unexpected server error",
         message: err.message,
-        stack: err.stack || "No stack trace available"
+        stack: err.stack || "No stack trace"
       }),
       { status: 500, headers: { "content-type": "application/json" } }
     );
