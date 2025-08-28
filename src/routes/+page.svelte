@@ -133,12 +133,30 @@
 
       console.log(`Animating ${index + 1}/${animations.length}:`, anim);
 
-      // Arms wiggling
+      // Arms wiggling - target both specific arms and generic "arms"
       if (anim.action === "wiggle" && anim.target.includes("arms")) {
+        const targets = '#arm-left, #arm-right, [data-animation-target="arms"]';
+        console.log('Wiggling arms with targets:', targets);
         anime({
-          targets: '#arm-left, #arm-right',
+          targets: targets,
           rotate: [-15, 15],
           duration: anim.duration || 1000,
+          loop: true,
+          direction: 'alternate',
+          easing: 'easeInOutSine',
+          delay: index * 200
+        });
+      }
+      
+      // Hair swaying
+      if (anim.action === "sway" && anim.target.includes("hair")) {
+        const targets = `[data-animation-target="hair"], #hair-${index}`;
+        console.log('Swaying hair with targets:', targets);
+        anime({
+          targets: targets,
+          rotate: [-5, 5],
+          transformOrigin: 'top center',
+          duration: anim.duration || 1200,
           loop: true,
           direction: 'alternate',
           easing: 'easeInOutSine',
@@ -203,16 +221,47 @@
         });
       }
 
-      // Generic wiggle for any target
+      // Generic wiggle, pulse, sway for any target
       if (anim.action === "wiggle" && !anim.target.includes("arms")) {
+        const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
+        console.log('Generic wiggle targets:', targets);
         anime({
-          targets: `[data-animation-target*="${anim.target}"]`,
+          targets: targets,
           rotate: [-5, 5],
           duration: anim.duration || 600,
           loop: true,
           direction: 'alternate',
           easing: 'easeInOutSine',
           delay: index * 200
+        });
+      }
+      
+      // Generic pulse for any target  
+      if (anim.action === "pulse") {
+        const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
+        console.log('Pulse targets:', targets);
+        anime({
+          targets: targets,
+          scale: [1, 1.3, 1],
+          duration: anim.duration || 800,
+          loop: true,
+          easing: 'easeInOutQuad',
+          delay: index * 200
+        });
+      }
+
+      // Generic sway for non-hair targets
+      if (anim.action === "sway" && !anim.target.includes("hair")) {
+        const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
+        console.log('Generic sway targets:', targets);
+        anime({
+          targets: targets,
+          translateX: [-10, 10],
+          duration: anim.duration || 1500,
+          loop: true,
+          direction: 'alternate',
+          easing: 'easeInOutSine',
+          delay: index * 250
         });
       }
     });
@@ -261,54 +310,60 @@
 
           <!-- ✅ SVG Overlay for Animation -->
           <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
-            <!-- Left Arm -->
-            {#if result.animationPlan?.some(a => a.target.includes('arms') && a.action === 'wiggle')}
-              <path 
-                id="arm-left" 
-                d="M100,200 C120,180 140,220 160,200" 
-                stroke="rgba(0,255,0,0.7)" 
-                stroke-width="8" 
-                fill="none"
-                data-animation-target="left arm" />
-            {/if}
-
-            <!-- Right Arm -->
-            {#if result.animationPlan?.some(a => a.target.includes('arms') && a.action === 'wiggle')}
-              <path 
-                id="arm-right" 
-                d="M300,200 C320,180 340,220 360,200" 
-                stroke="rgba(0,255,0,0.7)" 
-                stroke-width="8" 
-                fill="none"
-                data-animation-target="right arm" />
-            {/if}
-
-            <!-- Eyes -->
-            {#if result.animationPlan?.some(a => a.action === 'blink')}
-              <circle class="eye" cx="180" cy="120" r="10" fill="rgba(0,0,0,0.8)" data-animation-target="left eye" />
-              <circle class="eye" cx="220" cy="120" r="10" fill="rgba(0,0,0,0.8)" data-animation-target="right eye" />
-            {/if}
-
-            <!-- Vine -->
-            {#if result.animationPlan?.some(a => a.target.includes('vine') && a.action === 'grow')}
-              <path 
-                id="vine-path"
-                d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
-                stroke="rgba(0,150,0,0.8)"
-                stroke-width="6"
-                fill="none"
-                data-animation-target="vine" />
-            {/if}
-
-            <!-- Generic animated elements -->
-            {#each result.animationPlan as anim}
-              {#if !['arms', 'eye', 'vine'].some(type => anim.target.includes(type))}
-                <circle 
-                  cx={Math.random() * 300 + 50} 
-                  cy={Math.random() * 300 + 50} 
-                  r="15" 
-                  fill="rgba(255,100,100,0.6)"
+            <!-- Dynamic elements based on animation plan -->
+            {#each result.animationPlan as anim, i}
+              {#if anim.target.includes('arms') && anim.action === 'wiggle'}
+                <!-- Arms -->
+                <path 
+                  id="arm-left" 
+                  d="M100,200 C120,180 140,220 160,200" 
+                  stroke="rgba(0,255,0,0.8)" 
+                  stroke-width="6" 
+                  fill="none"
+                  data-animation-target="arms" />
+                <path 
+                  id="arm-right" 
+                  d="M300,200 C320,180 340,220 360,200" 
+                  stroke="rgba(0,255,0,0.8)" 
+                  stroke-width="6" 
+                  fill="none"
+                  data-animation-target="arms" />
+              {:else if anim.action === 'blink'}
+                <!-- Eyes -->
+                <circle class="eye" cx="180" cy="120" r="12" fill="rgba(0,0,0,0.9)" data-animation-target={anim.target} />
+                <circle class="eye" cx="220" cy="120" r="12" fill="rgba(0,0,0,0.9)" data-animation-target={anim.target} />
+              {:else if anim.target.includes('vine') && anim.action === 'grow'}
+                <!-- Vine -->
+                <path 
+                  id="vine-path"
+                  d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
+                  stroke="rgba(0,150,0,0.8)"
+                  stroke-width="5"
+                  fill="none"
                   data-animation-target={anim.target} />
+              {:else if anim.target.includes('hair')}
+                <!-- Hair elements -->
+                <path 
+                  d="M150,80 C170,60 200,65 230,70 C250,75 270,80 280,90"
+                  stroke="rgba(139,69,19,0.8)"
+                  stroke-width="4"
+                  fill="none"
+                  data-animation-target="hair" 
+                  id="hair-{i}" />
+              {:else}
+                <!-- Generic animated element -->
+                <g data-animation-target={anim.target} id="generic-{i}">
+                  <circle 
+                    cx={120 + (i * 60)} 
+                    cy={180 + (i * 30)} 
+                    r="20" 
+                    fill="rgba(255,100,150,0.6)"
+                    stroke="rgba(255,100,150,0.9)"
+                    stroke-width="2" />
+                  <text x={120 + (i * 60)} y={185 + (i * 30)} text-anchor="middle" fill="white" font-size="10">
+                    {anim.target.slice(0,4)}
+                  </text>
+                </g>
               {/if}
             {/each}
           </svg>
