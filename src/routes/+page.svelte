@@ -379,277 +379,293 @@ function clusterAndAveragePositions(features) {
   }
 
   // Animation function
-  function animateFromPlan(animations) {
-    if (!Array.isArray(animations)) {
-      console.log('No animations array provided');
-      return;
-    }
-    
-    if (!anime) {
-      console.log('Anime.js not loaded yet, storing as pending...');
-      pendingAnimations = animations;
-      return;
-    }
 
-    if (!imageLoaded) {
-      console.log('Image not loaded yet, storing as pending...');
-      pendingAnimations = animations;
-      return;
-    }
-    
-    console.log('Starting animations:', animations);
-    
-    // Get the user prompt for additional context
-    const userPrompt = prompt.toLowerCase();
-    console.log('User prompt:', userPrompt);
-    
-    animations.forEach((anim, index) => {
-      if (!anim.target || !anim.action) return;
+function animateFromPlan(animations) {
+  if (!Array.isArray(animations)) {
+    console.log('No animations array provided');
+    return;
+  }
+  
+  if (!anime) {
+    console.log('Anime.js not loaded yet, storing as pending...');
+    pendingAnimations = animations;
+    return;
+  }
 
-      console.log(`Animating ${index + 1}/${animations.length}:`, anim);
+  if (!imageLoaded) {
+    console.log('Image not loaded yet, storing as pending...');
+    pendingAnimations = animations;
+    return;
+  }
+  
+  console.log('Starting animations:', animations);
+  
+  // Get the user prompt for additional context
+  const userPrompt = prompt.toLowerCase();
+  console.log('User prompt:', userPrompt);
+  
+  animations.forEach((anim, index) => {
+    if (!anim.target || !anim.action) return;
 
-      // Handle "main element" target by checking the user prompt
-      if (anim.target === "main element") {
-        console.log('Handling "main element" target - checking user prompt for context');
+    console.log(`Animating ${index + 1}/${animations.length}:`, anim);
+
+    // Handle "main element" target by checking the user prompt
+    if (anim.target === "main element") {
+      console.log('Handling "main element" target - checking user prompt for context');
+      
+      // Check if user requested arm movements
+      if (userPrompt.includes('arm')) {
+        console.log('User requested arm movement, animating arms');
+        const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
         
-        // Check if user requested arm movements
-        if (userPrompt.includes('arm')) {
-          console.log('User requested arm movement, animating arms');
-          const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
-          
-          // Make arms visible
-          anime({
-            targets: '#arms-group',
-            opacity: [0, 1],
-            duration: 300,
-            easing: 'linear'
-          });
+        // Make arms visible BEFORE animating
+        anime({
+          targets: '#arms-group',
+          opacity: [0, 1],
+          duration: 300,
+          easing: 'linear',
+          complete: function() {
+            console.log('Arms are now visible, starting animation');
+            
+            const foundElements = document.querySelectorAll(targets);
+            console.log('Found arm elements:', foundElements);
+            
+            if (foundElements.length > 0) {
+              // Check for specific movement directions
+              if (userPrompt.includes('up') && userPrompt.includes('down')) {
+                console.log('Animating arms up and down');
+                anime({
+                  targets: targets,
+                  translateY: [-10, 10],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+              } else if (userPrompt.includes('side') || userPrompt.includes('left') || userPrompt.includes('right')) {
+                console.log('Animating arms side to side');
+                anime({
+                  targets: targets,
+                  translateX: [-10, 10],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+              } else {
+                console.log('Animating arms with default wiggle');
+                anime({
+                  targets: targets,
+                  rotate: [-15, 15],
+                  duration: anim.duration || 1000,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+              }
+            } else {
+              console.warn('No arm elements found for animation');
+            }
+          }
+        });
+        
+        return;
+      }
+      
+      // Check if user requested eye movements
+      if (userPrompt.includes('eye')) {
+        console.log('User requested eye movement, animating eyes');
+        const targets = '#eyes-group, .eye';
+        
+        // Make eyes visible BEFORE animating
+        anime({
+          targets: '#eyes-group',
+          opacity: [0, 1],
+          duration: 300,
+          easing: 'linear',
+          complete: function() {
+            console.log('Eyes are now visible, starting animation');
+            
+            const foundElements = document.querySelectorAll(targets);
+            console.log('Found eye elements:', foundElements);
+            
+            if (foundElements.length > 0) {
+              if (userPrompt.includes('blink')) {
+                console.log('Animating eyes blinking');
+                anime({
+                  targets: targets,
+                  opacity: [1, 0, 1],
+                  duration: anim.duration || 400,
+                  easing: 'linear',
+                  loop: true,
+                  delay: anime.stagger(150, {start: index * 300})
+                });
+              } else if (userPrompt.includes('up') && userPrompt.includes('down')) {
+                console.log('Animating eyes up and down');
+                anime({
+                  targets: targets,
+                  translateY: [-5, 5],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+              } else if (userPrompt.includes('side') || userPrompt.includes('left') || userPrompt.includes('right')) {
+                console.log('Animating eyes side to side');
+                anime({
+                  targets: targets,
+                  translateX: [-5, 5],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+              } else {
+                console.log('Animating eyes with default movement');
+                anime({
+                  targets: targets,
+                  translateX: [-5, 5],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+              }
+            } else {
+              console.warn('No eye elements found for animation');
+            }
+          }
+        });
+        
+        return;
+      }
+    }
+
+    // Arms wiggling
+    if (anim.action === "wiggle" && anim.target.includes("arms")) {
+      const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
+      
+      // Make arms visible BEFORE animating
+      anime({
+        targets: '#arms-group',
+        opacity: [0, 1],
+        duration: 300,
+        easing: 'linear',
+        complete: function() {
+          console.log('Arms are now visible, starting wiggle animation');
           
           const foundElements = document.querySelectorAll(targets);
           console.log('Found arm elements:', foundElements);
           
           if (foundElements.length > 0) {
-            // Check for specific movement directions
-            if (userPrompt.includes('up') && userPrompt.includes('down')) {
-              console.log('Animating arms up and down');
-              anime({
-                targets: targets,
-                translateY: [-10, 10],
-                duration: anim.duration || 800,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-            } else if (userPrompt.includes('side') || userPrompt.includes('left') || userPrompt.includes('right')) {
-              console.log('Animating arms side to side');
-              anime({
-                targets: targets,
-                translateX: [-10, 10],
-                duration: anim.duration || 800,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-            } else {
-              console.log('Animating arms with default wiggle');
-              anime({
-                targets: targets,
-                rotate: [-15, 15],
-                duration: anim.duration || 1000,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-            }
+            anime({
+              targets: targets,
+              rotate: [-15, 15],
+              duration: anim.duration || 1000,
+              loop: true,
+              direction: 'alternate',
+              easing: 'easeInOutSine',
+              delay: index * 200
+            });
           } else {
-            console.warn('No arm elements found for animation');
+            console.warn('No arm elements found for wiggling');
           }
         }
-        
-        // Check if user requested eye movements
-        if (userPrompt.includes('eye')) {
-          console.log('User requested eye movement, animating eyes');
-          const targets = '#eyes-group, .eye';
-          
-          // Make eyes visible
-          anime({
-            targets: '#eyes-group',
-            opacity: [0, 1],
-            duration: 300,
-            easing: 'linear'
-          });
+      });
+    }
+    
+    // Eye animations
+    if (anim.target.includes("eyes")) {
+      const targets = '#eyes-group, .eye';
+      
+      // Make eyes visible BEFORE animating
+      anime({
+        targets: '#eyes-group',
+        opacity: [0, 1],
+        duration: 300,
+        easing: 'linear',
+        complete: function() {
+          console.log('Eyes are now visible, starting eye animation');
           
           const foundElements = document.querySelectorAll(targets);
           console.log('Found eye elements:', foundElements);
           
           if (foundElements.length > 0) {
-            if (userPrompt.includes('blink')) {
-              console.log('Animating eyes blinking');
-              anime({
-                targets: targets,
-                opacity: [1, 0, 1],
-                duration: anim.duration || 400,
-                easing: 'linear',
-                loop: true,
-                delay: anime.stagger(150, {start: index * 300})
-              });
-            } else if (userPrompt.includes('up') && userPrompt.includes('down')) {
-              console.log('Animating eyes up and down');
-              anime({
-                targets: targets,
-                translateY: [-5, 5],
-                duration: anim.duration || 800,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-            } else if (userPrompt.includes('side') || userPrompt.includes('left') || userPrompt.includes('right')) {
-              console.log('Animating eyes side to side');
-              anime({
-                targets: targets,
-                translateX: [-5, 5],
-                duration: anim.duration || 800,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-            } else {
-              console.log('Animating eyes with default movement');
-              anime({
-                targets: targets,
-                translateX: [-5, 5],
-                duration: anim.duration || 800,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
+            switch (anim.action) {
+              case "blink":
+                anime({
+                  targets: targets,
+                  opacity: [1, 0, 1],
+                  duration: anim.duration || 400,
+                  easing: 'linear',
+                  loop: true,
+                  delay: anime.stagger(150, {start: index * 300})
+                });
+                break;
+                
+              case "oscillate":
+                anime({
+                  targets: targets,
+                  translateX: [-10, 10],
+                  duration: anim.duration || 1000,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+                break;
+                
+              case "move":
+                // Default eye movement - oscillate
+                anime({
+                  targets: targets,
+                  translateX: [-5, 5],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+                break;
+                
+              case "sway":
+                anime({
+                  targets: targets,
+                  translateX: [-10, 10],
+                  duration: anim.duration || 1000,
+                  loop: true,
+                  direction: 'alternate',
+                  easing: 'easeInOutSine',
+                  delay: index * 200
+                });
+                break;
+                
+              default:
+                // Default eye animation
+                anime({
+                  targets: targets,
+                  scale: [1, 1.2, 1],
+                  duration: anim.duration || 800,
+                  loop: true,
+                  easing: 'easeInOutQuad',
+                  delay: index * 200
+                });
             }
           } else {
             console.warn('No eye elements found for animation');
           }
         }
-        
-        return;
-      }
+      });
+    }
+  });
+}
 
-      // Arms wiggling
-      if (anim.action === "wiggle" && anim.target.includes("arms")) {
-        const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
-        
-        // Make arms visible
-        anime({
-          targets: '#arms-group',
-          opacity: [0, 1],
-          duration: 300,
-          easing: 'linear'
-        });
-        
-        const foundElements = document.querySelectorAll(targets);
-        console.log('Found arm elements:', foundElements);
-        
-        if (foundElements.length > 0) {
-          anime({
-            targets: targets,
-            rotate: [-15, 15],
-            duration: anim.duration || 1000,
-            loop: true,
-            direction: 'alternate',
-            easing: 'easeInOutSine',
-            delay: index * 200
-          });
-        } else {
-          console.warn('No arm elements found for wiggling');
-        }
-      }
-      
-      // Eye animations
-      if (anim.target.includes("eyes")) {
-        const targets = '#eyes-group, .eye';
-        
-        // Make eyes visible
-        anime({
-          targets: '#eyes-group',
-          opacity: [0, 1],
-          duration: 300,
-          easing: 'linear'
-        });
-        
-        const foundElements = document.querySelectorAll(targets);
-        console.log('Found eye elements:', foundElements);
-        
-        if (foundElements.length > 0) {
-          switch (anim.action) {
-            case "blink":
-              anime({
-                targets: targets,
-                opacity: [1, 0, 1],
-                duration: anim.duration || 400,
-                easing: 'linear',
-                loop: true,
-                delay: anime.stagger(150, {start: index * 300})
-              });
-              break;
-              
-            case "oscillate":
-              anime({
-                targets: targets,
-                translateX: [-10, 10],
-                duration: anim.duration || 1000,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-              break;
-              
-            case "move":
-              // Default eye movement - oscillate
-              anime({
-                targets: targets,
-                translateX: [-5, 5],
-                duration: anim.duration || 800,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-              break;
-              
-            case "sway":
-              anime({
-                targets: targets,
-                translateX: [-10, 10],
-                duration: anim.duration || 1000,
-                loop: true,
-                direction: 'alternate',
-                easing: 'easeInOutSine',
-                delay: index * 200
-              });
-              break;
-              
-            default:
-              // Default eye animation
-              anime({
-                targets: targets,
-                scale: [1, 1.2, 1],
-                duration: anim.duration || 800,
-                loop: true,
-                easing: 'easeInOutQuad',
-                delay: index * 200
-              });
-          }
-        } else {
-          console.warn('No eye elements found for animation');
-        }
-      }
-    });
-  }
 </script>
 
 <main>
