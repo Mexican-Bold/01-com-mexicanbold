@@ -468,7 +468,7 @@ function animateFromPlan(animations) {
               }
             } else {
               console.warn('No arm elements found for animation');
-            }
+ }
           }
         });
         
@@ -542,7 +542,7 @@ function animateFromPlan(animations) {
             }
           }
         });
-        
+
         return;
       }
     }
@@ -659,13 +659,12 @@ function animateFromPlan(animations) {
             }
           } else {
             console.warn('No eye elements found for animation');
-          }
+}
         }
       });
     }
   });
 }
-
 </script>
 
 <main>
