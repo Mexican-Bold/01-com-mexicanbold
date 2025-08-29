@@ -169,56 +169,58 @@
   }
 
   // Cluster nearby points and return average positions
-  function clusterAndAveragePositions(features) {
-    const result = {
-      eyes: { left: { x: 150, y: 140 }, right: { x: 250, y: 140 } },
-      arms: { left: { x: 100, y: 180 }, right: { x: 300, y: 180 } }
-    };
+
+// Update the clusterAndAveragePositions function to round coordinates
+function clusterAndAveragePositions(features) {
+  const result = {
+    eyes: { left: { x: 150, y: 140 }, right: { x: 250, y: 140 } },
+    arms: { left: { x: 100, y: 180 }, right: { x: 300, y: 180 } }
+  };
+  
+  // If we found eye positions, use them
+  if (features.eyes.length > 0) {
+    // Simple clustering: divide into left and right halves
+    const leftEyes = features.eyes.filter(p => p.x < 200);
+    const rightEyes = features.eyes.filter(p => p.x >= 200);
     
-    // If we found eye positions, use them
-    if (features.eyes.length > 0) {
-      // Simple clustering: divide into left and right halves
-      const leftEyes = features.eyes.filter(p => p.x < 200);
-      const rightEyes = features.eyes.filter(p => p.x >= 200);
-      
-      if (leftEyes.length > 0) {
-        result.eyes.left = {
-          x: leftEyes.reduce((sum, p) => sum + p.x, 0) / leftEyes.length,
-          y: leftEyes.reduce((sum, p) => sum + p.y, 0) / leftEyes.length
-        };
-      }
-      
-      if (rightEyes.length > 0) {
-        result.eyes.right = {
-          x: rightEyes.reduce((sum, p) => sum + p.x, 0) / rightEyes.length,
-          y: rightEyes.reduce((sum, p) => sum + p.y, 0) / rightEyes.length
-        };
-      }
+    if (leftEyes.length > 0) {
+      result.eyes.left = {
+        x: Math.round(leftEyes.reduce((sum, p) => sum + p.x, 0) / leftEyes.length),
+        y: Math.round(leftEyes.reduce((sum, p) => sum + p.y, 0) / leftEyes.length)
+      };
     }
     
-    // If we found arm positions, use them
-    if (features.arms.length > 0) {
-      // Simple clustering: divide into left and right halves
-      const leftArms = features.arms.filter(p => p.x < 200);
-      const rightArms = features.arms.filter(p => p.x >= 200);
-      
-      if (leftArms.length > 0) {
-        result.arms.left = {
-          x: leftArms.reduce((sum, p) => sum + p.x, 0) / leftArms.length,
-          y: leftArms.reduce((sum, p) => sum + p.y, 0) / leftArms.length
-        };
-      }
-      
-      if (rightArms.length > 0) {
-        result.arms.right = {
-          x: rightArms.reduce((sum, p) => sum + p.x, 0) / rightArms.length,
-          y: rightArms.reduce((sum, p) => sum + p.y, 0) / rightArms.length
-        };
-      }
+    if (rightEyes.length > 0) {
+      result.eyes.right = {
+        x: Math.round(rightEyes.reduce((sum, p) => sum + p.x, 0) / rightEyes.length),
+        y: Math.round(rightEyes.reduce((sum, p) => sum + p.y, 0) / rightEyes.length)
+      };
     }
-    
-    return result;
   }
+  
+  // If we found arm positions, use them
+  if (features.arms.length > 0) {
+    // Simple clustering: divide into left and right halves
+    const leftArms = features.arms.filter(p => p.x < 200);
+    const rightArms = features.arms.filter(p => p.x >= 200);
+    
+    if (leftArms.length > 0) {
+      result.arms.left = {
+        x: Math.round(leftArms.reduce((sum, p) => sum + p.x, 0) / leftArms.length),
+        y: Math.round(leftArms.reduce((sum, p) => sum + p.y, 0) / leftArms.length)
+      };
+    }
+    
+    if (rightArms.length > 0) {
+      result.arms.right = {
+        x: Math.round(rightArms.reduce((sum, p) => sum + p.x, 0) / rightArms.length),
+        y: Math.round(rightArms.reduce((sum, p) => sum + p.y, 0) / rightArms.length)
+      };
+    }
+  }
+  
+  return result;
+}
 
   // Check image status manually
   function checkImageStatus() {
