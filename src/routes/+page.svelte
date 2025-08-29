@@ -746,27 +746,34 @@ function clusterAndAveragePositions(features) {
 
   <!-- ✅ SVG Overlay for Animation - Place this code here -->
 <!-- ✅ SVG Overlay for Animation - Use detected feature positions -->
+<!-- ✅ SVG Overlay for Animation - Simplified approach -->
 <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
   <!-- Debug text to verify SVG is rendering -->
   <text x="10" y="20" fill="rgba(0,0,255,0.7)" font-size="12">
     Debug: SVG Overlay Active
   </text>
   
-  <!-- Arms - positioned based on detected features -->
+  <!-- Arms - use simple lines positioned based on detected features -->
   <g id="arms-group" data-animation-target="arms" style="opacity: 0;">
-    <path 
+    <line 
       id="arm-left" 
-      d="M{detectedFeatures?.arms?.left?.x || 100},{detectedFeatures?.arms?.left?.y || 180} C{detectedFeatures?.arms?.left?.x + 20 || 120},{detectedFeatures?.arms?.left?.y - 20 || 160} {detectedFeatures?.arms?.left?.x + 40 || 140},{detectedFeatures?.arms?.left?.y + 20 || 200}" 
+      x1={detectedFeatures?.arms?.left?.x || 100} 
+      y1={detectedFeatures?.arms?.left?.y || 180}
+      x2={detectedFeatures?.arms?.left?.x + 40 || 140} 
+      y2={detectedFeatures?.arms?.left?.y || 180}
       stroke="rgba(0,255,0,0)" 
       stroke-width="8" 
-      fill="none"
+      stroke-linecap="round"
       data-animation-target="arms" />
-    <path 
+    <line 
       id="arm-right" 
-      d="M{detectedFeatures?.arms?.right?.x || 300},{detectedFeatures?.arms?.right?.y || 180} C{detectedFeatures?.arms?.right?.x + 20 || 320},{detectedFeatures?.arms?.right?.y - 20 || 160} {detectedFeatures?.arms?.right?.x + 40 || 340},{detectedFeatures?.arms?.right?.y + 20 || 200}" 
+      x1={detectedFeatures?.arms?.right?.x || 300} 
+      y1={detectedFeatures?.arms?.right?.y || 180}
+      x2={detectedFeatures?.arms?.right?.x + 40 || 340} 
+      y2={detectedFeatures?.arms?.right?.y || 180}
       stroke="rgba(0,255,0,0)" 
       stroke-width="8" 
-      fill="none"
+      stroke-linecap="round"
       data-animation-target="arms" />
   </g>
 
@@ -782,7 +789,51 @@ function clusterAndAveragePositions(features) {
     <circle id="iris-right" cx={detectedFeatures?.eyes?.right?.x || 230} cy={detectedFeatures?.eyes?.right?.y || 140} r="4" fill="rgba(0,0,255,0)" />
   </g>
 
-  <!-- Rest of the SVG remains the same... -->
+  <!-- Hair - simple line -->
+  <line 
+    id="hair-main" 
+    x1="130" y1="100"
+    x2="260" y2="110"
+    stroke="rgba(139,69,19,0)"
+    stroke-width="6"
+    stroke-linecap="round"
+    data-animation-target="hair" 
+    style="opacity: 0;" />
+
+  <!-- Dynamic elements based on animation plan -->
+  {#each result.animationPlan as anim, i}
+    {#if anim.target.includes('vine') && anim.action === 'grow'}
+      <!-- Vine -->
+      <path 
+        id="vine-path"
+        d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
+        stroke="rgba(0,150,0,0)"
+        stroke-width="6"
+        fill="none"
+        data-animation-target={anim.target} />
+    {:else if !anim.target.includes('arms') && !anim.target.includes('hair') && !anim.target.includes('eye') && !anim.target.includes('iris')}
+      <!-- Generic animated element for other targets -->
+      <g data-animation-target={anim.target} id="generic-{i}" style="opacity: 0;">
+        <circle 
+          cx={120 + (i * 80)} 
+          cy={200 + (i * 40)} 
+          r="25" 
+          fill="rgba(255,150,100,0)"
+          stroke="rgba(255,150,100,0)"
+          stroke-width="3" />
+        <text x={120 + (i * 80)} y={205 + (i * 40)} text-anchor="middle" fill="white" font-size="12" font-weight="bold">
+          {anim.target.slice(0,3)}
+        </text>
+      </g>
+    {/if}
+  {/each}
+
+  <!-- Debug info overlay -->
+  {#if pendingAnimations}
+    <text x="10" y="380" fill="rgba(255,0,0,0.7)" font-size="12">
+      Waiting for image to load...
+    </text>
+  {/if}
 </svg>
 </div>
 
