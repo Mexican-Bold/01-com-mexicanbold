@@ -6,6 +6,7 @@
   let showSpinner = false;
   let imageBlobUrl = null;
   let savedImages = []; // Store previously uploaded images
+  let detectedFeatures = null; // State for detected features
   
   import { onMount } from 'svelte';
   
@@ -46,130 +47,6 @@
   /** @type {boolean} */ let isProcessing = false;
   /** @type {boolean} */ let imageError = false;
   /** @type {string | null} */ let selectedImageId = null;
-  /** @type {Object} */ let detectedFeatures = null;
-
-// Simple feature detection using canvas
-async function detectBasicFeatures(imageUrl) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      
-      // Set canvas size to match our SVG viewport
-      canvas.width = 400;
-      canvas.height = 400;
-      
-      // Draw image centered and scaled
-      const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
-      const x = (canvas.width - img.width * scale) / 2;
-      const y = (canvas.height - img.height * scale) / 2;
-      
-      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
-      
-      // Get image data for analysis
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Estimate feature positions
-      const features = estimateFeaturePositions(imageData);
-      
-      resolve(features);
-    };
-    img.src = imageUrl;
-  });
-}
-
-// Estimate feature positions from image data
-function estimateFeaturePositions(imageData) {
-  const data = imageData.data;
-  const width = imageData.width;
-  const height = imageData.height;
-  
-  // Simple heuristic: find dark areas that might be features
-  const features = {
-    eyes: [],
-    arms: []
-  };
-  
-  // Scan for potential eye positions (dark areas in upper portion)
-  for (let y = height * 0.2; y < height * 0.4; y += 5) {
-    for (let x = width * 0.3; x < width * 0.7; x += 5) {
-      const idx = (y * width + x) * 4;
-      const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-      
-      // If it's a dark spot, it might be an eye
-      if (brightness < 100) {
-        features.eyes.push({ x: x, y: y });
-      }
-    }
-  }
-  
-  // Scan for potential arm positions (dark areas extending from center)
-  for (let y = height * 0.4; y < height * 0.7; y += 10) {
-    for (let x = 0; x < width; x += 10) {
-      const idx = (y * width + x) * 4;
-      const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-      
-      // If it's a dark spot, it might be part of an arm
-      if (brightness < 100) {
-        features.arms.push({ x: x, y: y });
-      }
-    }
-  }
-  
-  // Cluster and average the positions
-// Cluster nearby points and return average positions
-function clusterAndAveragePositions(features) {
-  const result = {
-    eyes: { left: { x: 150, y: 140 }, right: { x: 250, y: 140 } },
-    arms: { left: { x: 100, y: 180 }, right: { x: 300, y: 180 } }
-  };
-  
-  // If we found eye positions, use them
-  if (features.eyes.length > 0) {
-    // Simple clustering: divide into left and right halves
-    const leftEyes = features.eyes.filter(p => p.x < 200); // Using fixed value instead of width/2
-    const rightEyes = features.eyes.filter(p => p.x >= 200); // Using fixed value instead of width/2
-    
-    if (leftEyes.length > 0) {
-      result.eyes.left = {
-        x: leftEyes.reduce((sum, p) => sum + p.x, 0) / leftEyes.length,
-        y: leftEyes.reduce((sum, p) => sum + p.y, 0) / leftEyes.length
-      };
-    }
-    
-    if (rightEyes.length > 0) {
-      result.eyes.right = {
-        x: rightEyes.reduce((sum, p) => sum + p.x, 0) / rightEyes.length,
-        y: rightEyes.reduce((sum, p) => sum + p.y, 0) / rightEyes.length
-      };
-    }
-  }
-  
-  // If we found arm positions, use them
-  if (features.arms.length > 0) {
-    // Simple clustering: divide into left and right halves
-    const leftArms = features.arms.filter(p => p.x < 200); // Using fixed value instead of width/2
-    const rightArms = features.arms.filter(p => p.x >= 200); // Using fixed value instead of width/2
-    
-    if (leftArms.length > 0) {
-      result.arms.left = {
-        x: leftArms.reduce((sum, p) => sum + p.x, 0) / leftArms.length,
-        y: leftArms.reduce((sum, p) => sum + p.y, 0) / leftArms.length
-      };
-    }
-    
-    if (rightArms.length > 0) {
-      result.arms.right = {
-        x: rightArms.reduce((sum, p) => sum + p.x, 0) / rightArms.length,
-        y: rightArms.reduce((sum, p) => sum + p.y, 0) / rightArms.length
-      };
-    }
-  }
-  
-  return result;
-}
 
   // Handle file input and create local preview
   function handleFileInput(e) {
@@ -217,67 +94,131 @@ function clusterAndAveragePositions(features) {
     }
   }
 
-  // Try to load image as blob to bypass CORS
-async function loadImageAsBlob(imageUrl) {
-  try {
-    showSpinner = true;
-    
-    // If the imageUrl is from imagedelivery.net, convert it to use our proxy
-    let proxyUrl = imageUrl;
-    if (imageUrl.includes('imagedelivery.net')) {
-      // Extract the image ID from the URL
-      const urlParts = imageUrl.split('/');
-      const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
-      let variant = urlParts[urlParts.length - 1]; // The last part is the variant
-      
-      // If the variant is "public" (which doesn't exist), use "full" instead
-      if (variant === 'public') {
-        variant = 'full';
-        console.log('Replacing "public" variant with "full"');
-      }
-      
-      proxyUrl = `/image/${imageId}/${variant}`; // Use relative path with variant
-      console.log('Using proxy URL:', proxyUrl);
-    }
-    
-    const response = await fetch(proxyUrl);
-    console.log('Proxy response status:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Proxy response error:', errorText);
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
-    }
-    
-    const blob = await response.blob();
-    const blobUrl = URL.createObjectURL(blob);
-    imageBlobUrl = blobUrl;
-    showSpinner = false;
-    return blobUrl;
-  } catch (error) {
-    console.error('Error loading image as blob:', error);
-    imageError = true;
-    showSpinner = false;
-    
-    // If proxy fails, try direct loading as fallback
-    if (imageUrl.includes('imagedelivery.net')) {
-      console.log('Trying direct image loading as fallback');
-      try {
-        const directResponse = await fetch(imageUrl);
-        if (directResponse.ok) {
-          const blob = await directResponse.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          imageBlobUrl = blobUrl;
-          return blobUrl;
-        }
-      } catch (directError) {
-        console.error('Direct loading also failed:', directError);
-      }
-    }
-    
-    return null;
+  // Simple feature detection using canvas
+  async function detectBasicFeatures(imageUrl) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size to match our SVG viewport
+        canvas.width = 400;
+        canvas.height = 400;
+        
+        // Draw image centered and scaled
+        const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+        const x = (canvas.width - img.width * scale) / 2;
+        const y = (canvas.height - img.height * scale) / 2;
+        
+        ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+        
+        // Get image data for analysis
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        // Estimate feature positions
+        const features = estimateFeaturePositions(imageData);
+        
+        resolve(features);
+      };
+      img.src = imageUrl;
+    });
   }
-}
+
+  // Estimate feature positions from image data
+  function estimateFeaturePositions(imageData) {
+    const data = imageData.data;
+    const width = imageData.width;
+    const height = imageData.height;
+    
+    // Simple heuristic: find dark areas that might be features
+    const features = {
+      eyes: [],
+      arms: []
+    };
+    
+    // Scan for potential eye positions (dark areas in upper portion)
+    for (let y = height * 0.2; y < height * 0.4; y += 5) {
+      for (let x = width * 0.3; x < width * 0.7; x += 5) {
+        const idx = (y * width + x) * 4;
+        const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        
+        // If it's a dark spot, it might be an eye
+        if (brightness < 100) {
+          features.eyes.push({ x: x, y: y });
+        }
+      }
+    }
+    
+    // Scan for potential arm positions (dark areas extending from center)
+    for (let y = height * 0.4; y < height * 0.7; y += 10) {
+      for (let x = 0; x < width; x += 10) {
+        const idx = (y * width + x) * 4;
+        const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+        
+        // If it's a dark spot, it might be part of an arm
+        if (brightness < 100) {
+          features.arms.push({ x: x, y: y });
+        }
+      }
+    }
+    
+    // Cluster and average the positions
+    return clusterAndAveragePositions(features);
+  }
+
+  // Cluster nearby points and return average positions
+  function clusterAndAveragePositions(features) {
+    const result = {
+      eyes: { left: { x: 150, y: 140 }, right: { x: 250, y: 140 } },
+      arms: { left: { x: 100, y: 180 }, right: { x: 300, y: 180 } }
+    };
+    
+    // If we found eye positions, use them
+    if (features.eyes.length > 0) {
+      // Simple clustering: divide into left and right halves
+      const leftEyes = features.eyes.filter(p => p.x < 200);
+      const rightEyes = features.eyes.filter(p => p.x >= 200);
+      
+      if (leftEyes.length > 0) {
+        result.eyes.left = {
+          x: leftEyes.reduce((sum, p) => sum + p.x, 0) / leftEyes.length,
+          y: leftEyes.reduce((sum, p) => sum + p.y, 0) / leftEyes.length
+        };
+      }
+      
+      if (rightEyes.length > 0) {
+        result.eyes.right = {
+          x: rightEyes.reduce((sum, p) => sum + p.x, 0) / rightEyes.length,
+          y: rightEyes.reduce((sum, p) => sum + p.y, 0) / rightEyes.length
+        };
+      }
+    }
+    
+    // If we found arm positions, use them
+    if (features.arms.length > 0) {
+      // Simple clustering: divide into left and right halves
+      const leftArms = features.arms.filter(p => p.x < 200);
+      const rightArms = features.arms.filter(p => p.x >= 200);
+      
+      if (leftArms.length > 0) {
+        result.arms.left = {
+          x: leftArms.reduce((sum, p) => sum + p.x, 0) / leftArms.length,
+          y: leftArms.reduce((sum, p) => sum + p.y, 0) / leftArms.length
+        };
+      }
+      
+      if (rightArms.length > 0) {
+        result.arms.right = {
+          x: rightArms.reduce((sum, p) => sum + p.x, 0) / rightArms.length,
+          y: rightArms.reduce((sum, p) => sum + p.y, 0) / rightArms.length
+        };
+      }
+    }
+    
+    return result;
+  }
 
   // Check image status manually
   function checkImageStatus() {
@@ -319,374 +260,394 @@ async function loadImageAsBlob(imageUrl) {
   }
 
   // Submit form
-// Submit form
-async function submit() {
-  if (!image && !selectedImageId) {
-    alert("Please upload an image or select a saved one.");
-    return;
-  }
-
-  if (!prompt) {
-    alert("Please enter an animation request.");
-    return;
-  }
-
-  isProcessing = true;
-  imageLoaded = false;
-  imageError = false;
-  pendingAnimations = null;
-  showSpinner = true;
-  imageBlobUrl = null;
-
-  try {
-    let formData = new FormData();
-    
-    if (selectedImageId) {
-      // Use saved image
-      const savedImage = savedImages.find(img => img.id === selectedImageId);
-      if (savedImage) {
-        formData.append("imageId", selectedImageId);
-        formData.append("prompt", prompt);
-      }
-    } else {
-      // Upload new image
-      const resizedImage = await resizeImage(image);
-      formData.append("image", resizedImage, image.name);
-      formData.append("prompt", prompt);
-    }
-
-    const res = await fetch("/api/animate", {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json();
-    if (!Array.isArray(data.animationPlan)) {
-      data.animationPlan = [];
-    }
-
-    result = data;
-    console.log('Animation result received:', result);
-
-    // Save image to saved images if it's a new upload
-    if (data.imageId && !selectedImageId) {
-      const newImage = {
-        id: data.imageId,
-        name: image.name,
-        url: data.imageUrl,
-        date: new Date().toISOString()
-      };
-      
-      // Check if image is already saved
-      if (!savedImages.some(img => img.id === data.imageId)) {
-        savedImages = [newImage, ...savedImages];
-        localStorage.setItem('savedImages', JSON.stringify(savedImages));
-      }
-    }
-
-if (result.animationPlan.length > 0) {
-  console.log('Animation plan:', result.animationPlan);
-  pendingAnimations = result.animationPlan;
-  
-  // Immediately replace the imageUrl with the proxy URL
- // In the submit function, after setting result.imageUrl, add:
-
-if (result.imageUrl) {
-
-  // Extract the image ID from the URL
-  const urlParts = result.imageUrl.split('/');
-  const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
-  let variant = urlParts[urlParts.length - 1]; // The last part is the variant
-  
-  // If the variant is "public" (which doesn't exist), use "full" instead
-  if (variant === 'public') {
-    variant = 'full';
-    console.log('Replacing "public" variant with "full"');
-  }
-  
-  // Replace the imageUrl with the proxy URL
-  result.imageUrl = `/image/${imageId}/${variant}`;
-  console.log('Replaced imageUrl with proxy URL:', result.imageUrl);
-  
-  // Detect features in the image
-  detectBasicFeatures(result.imageUrl).then(features => {
-    detectedFeatures = features;
-    console.log('Detected features:', features);
-  });
-} 
-  // Force animations to run after 1.5 seconds regardless of image loading
-  setTimeout(() => {
-    if (pendingAnimations && anime) {
-      console.log('Forcing animations to run after timeout');
-      imageLoaded = true; // Force set to true
-      animateFromPlan(pendingAnimations);
-      pendingAnimations = null;
-    }
-  }, 1500);
-  
-  // Check if image is already loaded
-  setTimeout(checkImageStatus, 100);
-} else {
-  showSpinner = false;
-}
-
-  } catch (err) {
-    result = { error: "Request failed", message: err.message };
-    console.error('Request error:', err);
-    showSpinner = false;
-  } finally {
-    isProcessing = false;
-  }
-}
-
-// Animation function
-function animateFromPlan(animations) {
-  if (!Array.isArray(animations)) {
-    console.log('No animations array provided');
-    return;
-  }
-  
-  if (!anime) {
-    console.log('Anime.js not loaded yet, storing as pending...');
-    pendingAnimations = animations;
-    return;
-  }
-
-  if (!imageLoaded) {
-    console.log('Image not loaded yet, storing as pending...');
-    pendingAnimations = animations;
-    return;
-  }
-  
-  console.log('Starting animations:', animations);
-  
-  // Enhanced debugging - check immediately
-  const allTargets = document.querySelectorAll('[data-animation-target]');
-  console.log('All available animation targets:', allTargets);
-  
-  // Specifically check for arm elements
-  const armElements = document.querySelectorAll('#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]');
-  console.log('Arm elements specifically:', armElements);
-  
-  // Check for eye elements
-  const eyeElements = document.querySelectorAll('#eyes-group, .eye');
-  console.log('Eye elements specifically:', eyeElements);
-  
-  // Check for iris elements
-  const irisElements = document.querySelectorAll('#iris-group');
-  console.log('Iris elements specifically:', irisElements);
-  
-  animations.forEach((anim, index) => {
-    if (!anim.target || !anim.action) return;
-
-    console.log(`Animating ${index + 1}/${animations.length}:`, anim);
-
-    // Handle "main element" target by mapping to appropriate elements
-    if (anim.target === "main element") {
-      console.log('Handling "main element" target - mapping to eyes');
-      // Map "main element" to eyes for blinking
-      const targets = '#eyes-group, .eye';
-      console.log('Blinking eyes with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found eye elements for blinking:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          opacity: [1, 0, 1],
-          duration: anim.duration || 400,
-          easing: 'linear',
-          loop: true,
-          delay: anime.stagger(150, {start: index * 300})
-        });
-      } else {
-        console.warn('No eye elements found for blinking');
-      }
+  async function submit() {
+    if (!image && !selectedImageId) {
+      alert("Please upload an image or select a saved one.");
       return;
     }
 
-    // Arms wiggling
-    if (anim.action === "wiggle" && anim.target.includes("arms")) {
-      const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
-      console.log('Wiggling arms with targets:', targets);
+    if (!prompt) {
+      alert("Please enter an animation request.");
+      return;
+    }
+
+    isProcessing = true;
+    imageLoaded = false;
+    imageError = false;
+    pendingAnimations = null;
+    showSpinner = true;
+    imageBlobUrl = null;
+
+    try {
+      let formData = new FormData();
       
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found arm elements:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          rotate: [-15, 15],
-          duration: anim.duration || 1000,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 200
-        });
+      if (selectedImageId) {
+        // Use saved image
+        const savedImage = savedImages.find(img => img.id === selectedImageId);
+        if (savedImage) {
+          formData.append("imageId", selectedImageId);
+          formData.append("prompt", prompt);
+        }
       } else {
-        console.warn('No arm elements found for wiggling');
+        // Upload new image
+        const resizedImage = await resizeImage(image);
+        formData.append("image", resizedImage, image.name);
+        formData.append("prompt", prompt);
       }
+
+      const res = await fetch("/api/animate", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!Array.isArray(data.animationPlan)) {
+        data.animationPlan = [];
+      }
+
+      result = data;
+      console.log('Animation result received:', result);
+
+// Save image to saved images if it's a new upload
+      if (data.imageId && !selectedImageId) {
+        const newImage = {
+          id: data.imageId,
+          name: image.name,
+          url: data.imageUrl,
+          date: new Date().toISOString()
+        };
+        
+        // Check if image is already saved
+        if (!savedImages.some(img => img.id === data.imageId)) {
+          savedImages = [newImage, ...savedImages];
+          localStorage.setItem('savedImages', JSON.stringify(savedImages));
+        }
+      }
+
+      if (result.animationPlan.length > 0) {
+        console.log('Animation plan:', result.animationPlan);
+        pendingAnimations = result.animationPlan;
+        
+        // Immediately replace the imageUrl with the proxy URL
+        if (result.imageUrl) {
+          // Extract the image ID from the URL
+          const urlParts = result.imageUrl.split('/');
+          const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
+          let variant = urlParts[urlParts.length - 1]; // The last part is the variant
+          
+          // If the variant is "public" (which doesn't exist), use "full" instead
+          if (variant === 'public') {
+            variant = 'full';
+            console.log('Replacing "public" variant with "full"');
+          }
+          
+          // Replace the imageUrl with the proxy URL
+          result.imageUrl = `/image/${imageId}/${variant}`;
+          console.log('Replaced imageUrl with proxy URL:', result.imageUrl);
+          
+          // Detect features in the image
+          detectBasicFeatures(result.imageUrl).then(features => {
+            detectedFeatures = features;
+            console.log('Detected features:', features);
+          });
+        }
+        
+        // Force animations to run after 1.5 seconds regardless of image loading
+        setTimeout(() => {
+          if (pendingAnimations && anime) {
+            console.log('Forcing animations to run after timeout');
+            imageLoaded = true; // Force set to true
+            animateFromPlan(pendingAnimations);
+            pendingAnimations = null;
+          }
+        }, 1500);
+        
+        // Check if image is already loaded
+        setTimeout(checkImageStatus, 100);
+      } else {
+        showSpinner = false;
+      }
+    } catch (err) {
+      result = { error: "Request failed", message: err.message };
+      console.error('Request error:', err);
+      showSpinner = false;
+    } finally {
+      isProcessing = false;
+    }
+  }
+
+  // Animation function
+  function animateFromPlan(animations) {
+    if (!Array.isArray(animations)) {
+      console.log('No animations array provided');
+      return;
     }
     
-    // Eye blinking
-    if (anim.action === "blink" || (anim.target.includes("eye") && anim.action === "pulse")) {
-      const targets = '#eyes-group, .eye';
-      console.log('Blinking eyes with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found eye elements for blinking:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          opacity: [1, 0, 1],
-          duration: anim.duration || 400,
-          easing: 'linear',
-          loop: true,
-          delay: anime.stagger(150, {start: index * 300})
-        });
-      } else {
-        console.warn('No eye elements found for blinking');
-      }
+    if (!anime) {
+      console.log('Anime.js not loaded yet, storing as pending...');
+      pendingAnimations = animations;
+      return;
     }
 
-    // Eye swaying
-    if (anim.action === "sway" && anim.target.includes("eyes")) {
-      const targets = '#eyes-group';
-      console.log('Swaying eyes with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found eye elements for swaying:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          translateX: [-10, 10],
-          duration: anim.duration || 1500,
-          loop: true,
-          direction: 'alternate',
-          easing: 'easeInOutSine',
-          delay: index * 250
-        });
-      } else {
-        console.warn('No eye elements found for swaying');
-      }
+    if (!imageLoaded) {
+      console.log('Image not loaded yet, storing as pending...');
+      pendingAnimations = animations;
+      return;
     }
+    
+    console.log('Starting animations:', animations);
+    
+    // Get the user prompt for additional context
+    const userPrompt = prompt.toLowerCase();
+    console.log('User prompt:', userPrompt);
+    
+    animations.forEach((anim, index) => {
+      if (!anim.target || !anim.action) return;
 
-    // Iris pulsing
-    if (anim.action === "pulse" && anim.target.includes("iris")) {
-      const targets = '#iris-group';
-      console.log('Pulsing iris with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found iris elements for pulsing:', foundElements);
-      
-      if (foundElements.length > 0) {
-        anime({
-          targets: targets,
-          scale: [1, 1.2, 1],
-          duration: anim.duration || 800,
-          loop: true,
-          easing: 'easeInOutQuad',
-          delay: index * 200
-        });
-      } else {
-        console.warn('No iris elements found for pulsing');
-      }
-    }
+      console.log(`Animating ${index + 1}/${animations.length}:`, anim);
 
-    // Hair animations
-    if (anim.target.includes("hair")) {
-      const targets = '#hair-main';
-      console.log('Animating hair with targets:', targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found hair elements:', foundElements);
-      
-      if (foundElements.length > 0) {
-        if (anim.action === "wiggle" || anim.action === "sway") {
-          anime({
-            targets: targets,
-            rotate: [-5, 5],
-            duration: anim.duration || 800,
-            loop: true,
-            direction: 'alternate',
-            easing: 'easeInOutSine',
-            delay: index * 200
-          });
-        }
-      } else {
-        console.warn('No hair elements found for animation');
-      }
-    }
-
-    // Vine growing
-    if (anim.action === "grow" && anim.target.includes("vine")) {
-      const vineElement = document.querySelector('#vine-path');
-      console.log('Found vine element:', vineElement);
-      
-      if (vineElement) {
-        const pathLength = vineElement.getTotalLength();
-        vineElement.style.strokeDasharray = pathLength;
-        vineElement.style.strokeDashoffset = pathLength;
+      // Handle "main element" target by checking the user prompt
+      if (anim.target === "main element") {
+        console.log('Handling "main element" target - checking user prompt for context');
         
-        anime({
-          targets: '#vine-path',
-          strokeDashoffset: [pathLength, 0],
-          duration: anim.duration || 2000,
-          easing: 'easeInOutQuad',
-          loop: false,
-          delay: index * 300
-        });
-      }
-    }
-
-    // Generic animations
-    if (!anim.target.includes('arms') && !anim.target.includes('eyes') && !anim.target.includes('iris') && !anim.target.includes('hair') && !anim.target.includes('vine') && anim.target !== "main element") {
-      const targets = `[data-animation-target="${anim.target}"], #generic-${index}`;
-      console.log(`Generic ${anim.action} for ${anim.target} with targets:`, targets);
-      
-      const foundElements = document.querySelectorAll(targets);
-      console.log('Found generic elements:', foundElements);
-      
-      if (foundElements.length > 0) {
-        if (anim.action === "pulse") {
+        // Check if user requested arm movements
+        if (userPrompt.includes('arm')) {
+          console.log('User requested arm movement, animating arms');
+          const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
+          
+          // Make arms visible
           anime({
-            targets: targets,
-            scale: [1, 1.2, 1],
-            duration: anim.duration || 800,
-            loop: true,
-            easing: 'easeInOutQuad',
-            delay: index * 200
+            targets: '#arms-group',
+            opacity: [0, 1],
+            duration: 300,
+            easing: 'linear'
           });
-        } else if (anim.action === "sway") {
-          anime({
-            targets: targets,
-            translateX: [-10, 10],
-            duration: anim.duration || 1500,
-            loop: true,
-            direction: 'alternate',
-            easing: 'easeInOutSine',
-            delay: index * 250
-          });
-        } else if (anim.action === "wiggle") {
-          anime({
-            targets: targets,
-            rotate: [-5, 5],
-            duration: anim.duration || 600,
-            loop: true,
-            direction: 'alternate',
-            easing: 'easeInOutSine',
-            delay: index * 200
-          });
+          
+          const foundElements = document.querySelectorAll(targets);
+          console.log('Found arm elements:', foundElements);
+          
+          if (foundElements.length > 0) {
+            // Check for specific movement directions
+            if (userPrompt.includes('up') && userPrompt.includes('down')) {
+              console.log('Animating arms up and down');
+              anime({
+                targets: targets,
+                translateY: [-10, 10],
+                duration: anim.duration || 800,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+            } else if (userPrompt.includes('side') || userPrompt.includes('left') || userPrompt.includes('right')) {
+              console.log('Animating arms side to side');
+              anime({
+                targets: targets,
+                translateX: [-10, 10],
+                duration: anim.duration || 800,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+            } else {
+              console.log('Animating arms with default wiggle');
+              anime({
+                targets: targets,
+                rotate: [-15, 15],
+                duration: anim.duration || 1000,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+            }
+          } else {
+            console.warn('No arm elements found for animation');
+          }
         }
-      } else {
-        console.warn(`No elements found for ${anim.action} on ${anim.target}`);
+        
+        // Check if user requested eye movements
+        if (userPrompt.includes('eye')) {
+          console.log('User requested eye movement, animating eyes');
+          const targets = '#eyes-group, .eye';
+          
+          // Make eyes visible
+          anime({
+            targets: '#eyes-group',
+            opacity: [0, 1],
+            duration: 300,
+            easing: 'linear'
+          });
+          
+          const foundElements = document.querySelectorAll(targets);
+          console.log('Found eye elements:', foundElements);
+          
+          if (foundElements.length > 0) {
+            if (userPrompt.includes('blink')) {
+              console.log('Animating eyes blinking');
+              anime({
+                targets: targets,
+                opacity: [1, 0, 1],
+                duration: anim.duration || 400,
+                easing: 'linear',
+                loop: true,
+                delay: anime.stagger(150, {start: index * 300})
+              });
+            } else if (userPrompt.includes('up') && userPrompt.includes('down')) {
+              console.log('Animating eyes up and down');
+              anime({
+                targets: targets,
+                translateY: [-5, 5],
+                duration: anim.duration || 800,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+            } else if (userPrompt.includes('side') || userPrompt.includes('left') || userPrompt.includes('right')) {
+              console.log('Animating eyes side to side');
+              anime({
+                targets: targets,
+                translateX: [-5, 5],
+                duration: anim.duration || 800,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+            } else {
+              console.log('Animating eyes with default movement');
+              anime({
+                targets: targets,
+                translateX: [-5, 5],
+                duration: anim.duration || 800,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+            }
+          } else {
+            console.warn('No eye elements found for animation');
+          }
+        }
+        
+        return;
       }
-    }
-  });
-}
+
+      // Arms wiggling
+      if (anim.action === "wiggle" && anim.target.includes("arms")) {
+        const targets = '#arms-group, #arm-left, #arm-right, [data-animation-target="arms"]';
+        
+        // Make arms visible
+        anime({
+          targets: '#arms-group',
+          opacity: [0, 1],
+          duration: 300,
+          easing: 'linear'
+        });
+        
+        const foundElements = document.querySelectorAll(targets);
+        console.log('Found arm elements:', foundElements);
+        
+        if (foundElements.length > 0) {
+          anime({
+            targets: targets,
+            rotate: [-15, 15],
+            duration: anim.duration || 1000,
+            loop: true,
+            direction: 'alternate',
+            easing: 'easeInOutSine',
+            delay: index * 200
+          });
+        } else {
+          console.warn('No arm elements found for wiggling');
+        }
+      }
+      
+      // Eye animations
+      if (anim.target.includes("eyes")) {
+        const targets = '#eyes-group, .eye';
+        
+        // Make eyes visible
+        anime({
+          targets: '#eyes-group',
+          opacity: [0, 1],
+          duration: 300,
+          easing: 'linear'
+        });
+        
+        const foundElements = document.querySelectorAll(targets);
+        console.log('Found eye elements:', foundElements);
+        
+        if (foundElements.length > 0) {
+          switch (anim.action) {
+            case "blink":
+              anime({
+                targets: targets,
+                opacity: [1, 0, 1],
+                duration: anim.duration || 400,
+                easing: 'linear',
+                loop: true,
+                delay: anime.stagger(150, {start: index * 300})
+              });
+              break;
+              
+            case "oscillate":
+              anime({
+                targets: targets,
+                translateX: [-10, 10],
+                duration: anim.duration || 1000,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+              break;
+              
+            case "move":
+              // Default eye movement - oscillate
+              anime({
+                targets: targets,
+                translateX: [-5, 5],
+                duration: anim.duration || 800,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+              break;
+              
+            case "sway":
+              anime({
+                targets: targets,
+                translateX: [-10, 10],
+                duration: anim.duration || 1000,
+                loop: true,
+                direction: 'alternate',
+                easing: 'easeInOutSine',
+                delay: index * 200
+              });
+              break;
+              
+            default:
+              // Default eye animation
+              anime({
+                targets: targets,
+                scale: [1, 1.2, 1],
+                duration: anim.duration || 800,
+                loop: true,
+                easing: 'easeInOutQuad',
+                delay: index * 200
+              });
+          }
+        } else {
+          console.warn('No eye elements found for animation');
+        }
+      }
+    });
+  }
 </script>
 
 <main>
