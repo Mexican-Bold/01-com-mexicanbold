@@ -119,9 +119,6 @@ function estimateFeaturePositions(imageData) {
   }
   
   // Cluster and average the positions
-  return clusterAndAveragePositions(features);
-}
-
 // Cluster nearby points and return average positions
 function clusterAndAveragePositions(features) {
   const result = {
@@ -132,8 +129,8 @@ function clusterAndAveragePositions(features) {
   // If we found eye positions, use them
   if (features.eyes.length > 0) {
     // Simple clustering: divide into left and right halves
-    const leftEyes = features.eyes.filter(p => p.x < width / 2);
-    const rightEyes = features.eyes.filter(p => p.x >= width / 2);
+    const leftEyes = features.eyes.filter(p => p.x < 200); // Using fixed value instead of width/2
+    const rightEyes = features.eyes.filter(p => p.x >= 200); // Using fixed value instead of width/2
     
     if (leftEyes.length > 0) {
       result.eyes.left = {
@@ -153,8 +150,8 @@ function clusterAndAveragePositions(features) {
   // If we found arm positions, use them
   if (features.arms.length > 0) {
     // Simple clustering: divide into left and right halves
-    const leftArms = features.arms.filter(p => p.x < width / 2);
-    const rightArms = features.arms.filter(p => p.x >= width / 2);
+    const leftArms = features.arms.filter(p => p.x < 200); // Using fixed value instead of width/2
+    const rightArms = features.arms.filter(p => p.x >= 200); // Using fixed value instead of width/2
     
     if (leftArms.length > 0) {
       result.arms.left = {
