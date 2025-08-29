@@ -46,6 +46,133 @@
   /** @type {boolean} */ let isProcessing = false;
   /** @type {boolean} */ let imageError = false;
   /** @type {string | null} */ let selectedImageId = null;
+  /** @type {Object} */ let detectedFeatures = null;
+
+// Simple feature detection using canvas
+async function detectBasicFeatures(imageUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      
+      // Set canvas size to match our SVG viewport
+      canvas.width = 400;
+      canvas.height = 400;
+      
+      // Draw image centered and scaled
+      const scale = Math.min(canvas.width / img.width, canvas.height / img.height);
+      const x = (canvas.width - img.width * scale) / 2;
+      const y = (canvas.height - img.height * scale) / 2;
+      
+      ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+      
+      // Get image data for analysis
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // Estimate feature positions
+      const features = estimateFeaturePositions(imageData);
+      
+      resolve(features);
+    };
+    img.src = imageUrl;
+  });
+}
+
+// Estimate feature positions from image data
+function estimateFeaturePositions(imageData) {
+  const data = imageData.data;
+  const width = imageData.width;
+  const height = imageData.height;
+  
+  // Simple heuristic: find dark areas that might be features
+  const features = {
+    eyes: [],
+    arms: []
+  };
+  
+  // Scan for potential eye positions (dark areas in upper portion)
+  for (let y = height * 0.2; y < height * 0.4; y += 5) {
+    for (let x = width * 0.3; x < width * 0.7; x += 5) {
+      const idx = (y * width + x) * 4;
+      const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+      
+      // If it's a dark spot, it might be an eye
+      if (brightness < 100) {
+        features.eyes.push({ x: x, y: y });
+      }
+    }
+  }
+  
+  // Scan for potential arm positions (dark areas extending from center)
+  for (let y = height * 0.4; y < height * 0.7; y += 10) {
+    for (let x = 0; x < width; x += 10) {
+      const idx = (y * width + x) * 4;
+      const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
+      
+      // If it's a dark spot, it might be part of an arm
+      if (brightness < 100) {
+        features.arms.push({ x: x, y: y });
+      }
+    }
+  }
+  
+  // Cluster and average the positions
+  return clusterAndAveragePositions(features);
+}
+
+// Cluster nearby points and return average positions
+function clusterAndAveragePositions(features) {
+  const result = {
+    eyes: { left: { x: 150, y: 140 }, right: { x: 250, y: 140 } },
+    arms: { left: { x: 100, y: 180 }, right: { x: 300, y: 180 } }
+  };
+  
+  // If we found eye positions, use them
+  if (features.eyes.length > 0) {
+    // Simple clustering: divide into left and right halves
+    const leftEyes = features.eyes.filter(p => p.x < width / 2);
+    const rightEyes = features.eyes.filter(p => p.x >= width / 2);
+    
+    if (leftEyes.length > 0) {
+      result.eyes.left = {
+        x: leftEyes.reduce((sum, p) => sum + p.x, 0) / leftEyes.length,
+        y: leftEyes.reduce((sum, p) => sum + p.y, 0) / leftEyes.length
+      };
+    }
+    
+    if (rightEyes.length > 0) {
+      result.eyes.right = {
+        x: rightEyes.reduce((sum, p) => sum + p.x, 0) / rightEyes.length,
+        y: rightEyes.reduce((sum, p) => sum + p.y, 0) / rightEyes.length
+      };
+    }
+  }
+  
+  // If we found arm positions, use them
+  if (features.arms.length > 0) {
+    // Simple clustering: divide into left and right halves
+    const leftArms = features.arms.filter(p => p.x < width / 2);
+    const rightArms = features.arms.filter(p => p.x >= width / 2);
+    
+    if (leftArms.length > 0) {
+      result.arms.left = {
+        x: leftArms.reduce((sum, p) => sum + p.x, 0) / leftArms.length,
+        y: leftArms.reduce((sum, p) => sum + p.y, 0) / leftArms.length
+      };
+    }
+    
+    if (rightArms.length > 0) {
+      result.arms.right = {
+        x: rightArms.reduce((sum, p) => sum + p.x, 0) / rightArms.length,
+        y: rightArms.reduce((sum, p) => sum + p.y, 0) / rightArms.length
+      };
+    }
+  }
+  
+  return result;
+}
 
   // Handle file input and create local preview
   function handleFileInput(e) {
@@ -265,12 +392,15 @@ if (result.animationPlan.length > 0) {
   pendingAnimations = result.animationPlan;
   
   // Immediately replace the imageUrl with the proxy URL
+ // In the submit function, after setting result.imageUrl, add:
+
 if (result.imageUrl) {
+
   // Extract the image ID from the URL
   const urlParts = result.imageUrl.split('/');
   const imageId = urlParts[urlParts.length - 2]; // The ID is before the variant
   let variant = urlParts[urlParts.length - 1]; // The last part is the variant
- 
+  
   // If the variant is "public" (which doesn't exist), use "full" instead
   if (variant === 'public') {
     variant = 'full';
@@ -280,8 +410,13 @@ if (result.imageUrl) {
   // Replace the imageUrl with the proxy URL
   result.imageUrl = `/image/${imageId}/${variant}`;
   console.log('Replaced imageUrl with proxy URL:', result.imageUrl);
-}   
   
+  // Detect features in the image
+  detectBasicFeatures(result.imageUrl).then(features => {
+    detectedFeatures = features;
+    console.log('Detected features:', features);
+  });
+} 
   // Force animations to run after 1.5 seconds regardless of image loading
   setTimeout(() => {
     if (pendingAnimations && anime) {
@@ -650,89 +785,45 @@ function animateFromPlan(animations) {
   {/if}
 
   <!-- ✅ SVG Overlay for Animation - Place this code here -->
-  <svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet" style="background: rgba(255,255,255,0.1);">
-    <!-- Debug text to verify SVG is rendering -->
-    <text x="10" y="20" fill="rgba(0,0,255,0.7)" font-size="12">
-      Debug: SVG Overlay Active
-    </text>
-    
-    <!-- Arms (always present for wiggle animations) -->
-    <g id="arms-group" data-animation-target="arms">
-      <path 
-        id="arm-left" 
-        d="M80,180 C100,160 120,200 140,180" 
-        stroke="rgba(0,255,0,0.7)" 
-        stroke-width="8" 
-        fill="none"
-        data-animation-target="arms"
-        opacity="0.8" />
-      <path 
-        id="arm-right" 
-        d="M260,180 C280,160 300,200 320,180" 
-        stroke="rgba(0,255,0,0.7)" 
-        stroke-width="8" 
-        fill="none"
-        data-animation-target="arms"
-        opacity="0.8" />
-    </g>
-
-    <!-- Eyes (for blinking) -->
-    <g id="eyes-group" data-animation-target="eyes">
-      <circle class="eye" id="eye-left" cx="170" cy="140" r="8" fill="rgba(0,0,0,0.8)" />
-      <circle class="eye" id="eye-right" cx="230" cy="140" r="8" fill="rgba(0,0,0,0.8)" />
-    </g>
-
-    <!-- Iris elements for pulsing -->
-    <g id="iris-group" data-animation-target="iris">
-      <circle id="iris-left" cx="170" cy="140" r="4" fill="rgba(0,0,255,0.8)" />
-      <circle id="iris-right" cx="230" cy="140" r="4" fill="rgba(0,0,255,0.8)" />
-    </g>
-
-    <!-- Hair (for swaying) -->
+<!-- ✅ SVG Overlay for Animation - Use detected feature positions -->
+<svg class="animation-overlay" viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet">
+  <!-- Debug text to verify SVG is rendering -->
+  <text x="10" y="20" fill="rgba(0,0,255,0.7)" font-size="12">
+    Debug: SVG Overlay Active
+  </text>
+  
+  <!-- Arms - positioned based on detected features -->
+  <g id="arms-group" data-animation-target="arms" style="opacity: 0;">
     <path 
-      id="hair-main" 
-      d="M130,100 C150,80 180,85 210,90 C230,95 250,100 260,110"
-      stroke="rgba(139,69,19,0.7)"
-      stroke-width="6"
+      id="arm-left" 
+      d="M{detectedFeatures?.arms?.left?.x || 100},{detectedFeatures?.arms?.left?.y || 180} C{detectedFeatures?.arms?.left?.x + 20 || 120},{detectedFeatures?.arms?.left?.y - 20 || 160} {detectedFeatures?.arms?.left?.x + 40 || 140},{detectedFeatures?.arms?.left?.y + 20 || 200}" 
+      stroke="rgba(0,255,0,0)" 
+      stroke-width="8" 
       fill="none"
-      data-animation-target="hair" 
-      opacity="0.8" />
+      data-animation-target="arms" />
+    <path 
+      id="arm-right" 
+      d="M{detectedFeatures?.arms?.right?.x || 300},{detectedFeatures?.arms?.right?.y || 180} C{detectedFeatures?.arms?.right?.x + 20 || 320},{detectedFeatures?.arms?.right?.y - 20 || 160} {detectedFeatures?.arms?.right?.x + 40 || 340},{detectedFeatures?.arms?.right?.y + 20 || 200}" 
+      stroke="rgba(0,255,0,0)" 
+      stroke-width="8" 
+      fill="none"
+      data-animation-target="arms" />
+  </g>
 
-    <!-- Dynamic elements based on animation plan -->
-    {#each result.animationPlan as anim, i}
-      {#if anim.target.includes('vine') && anim.action === 'grow'}
-        <!-- Vine -->
-        <path 
-          id="vine-path"
-          d="M250,300 C260,280 280,270 300,280 C320,290 330,310 320,330"
-          stroke="rgba(0,150,0,0.8)"
-          stroke-width="6"
-          fill="none"
-          data-animation-target={anim.target} />
-      {:else if !anim.target.includes('arms') && !anim.target.includes('hair') && !anim.target.includes('eye') && !anim.target.includes('iris')}
-        <!-- Generic animated element for other targets -->
-        <g data-animation-target={anim.target} id="generic-{i}">
-          <circle 
-            cx={120 + (i * 80)} 
-            cy={200 + (i * 40)} 
-            r="25" 
-            fill="rgba(255,150,100,0.6)"
-            stroke="rgba(255,150,100,0.9)"
-            stroke-width="3" />
-          <text x={120 + (i * 80)} y={205 + (i * 40)} text-anchor="middle" fill="white" font-size="12" font-weight="bold">
-            {anim.target.slice(0,3)}
-          </text>
-        </g>
-      {/if}
-    {/each}
+  <!-- Eyes - positioned based on detected features -->
+  <g id="eyes-group" data-animation-target="eyes" style="opacity: 0;">
+    <circle class="eye" id="eye-left" cx={detectedFeatures?.eyes?.left?.x || 170} cy={detectedFeatures?.eyes?.left?.y || 140} r="8" fill="rgba(0,0,0,0)" />
+    <circle class="eye" id="eye-right" cx={detectedFeatures?.eyes?.right?.x || 230} cy={detectedFeatures?.eyes?.right?.y || 140} r="8" fill="rgba(0,0,0,0)" />
+  </g>
 
-    <!-- Debug info overlay -->
-    {#if pendingAnimations}
-      <text x="10" y="380" fill="rgba(255,0,0,0.7)" font-size="12">
-        Waiting for image to load...
-      </text>
-    {/if}
-  </svg>
+  <!-- Iris - positioned based on detected features -->
+  <g id="iris-group" data-animation-target="iris" style="opacity: 0;">
+    <circle id="iris-left" cx={detectedFeatures?.eyes?.left?.x || 170} cy={detectedFeatures?.eyes?.left?.y || 140} r="4" fill="rgba(0,0,255,0)" />
+    <circle id="iris-right" cx={detectedFeatures?.eyes?.right?.x || 230} cy={detectedFeatures?.eyes?.right?.y || 140} r="4" fill="rgba(0,0,255,0)" />
+  </g>
+
+  <!-- Rest of the SVG remains the same... -->
+</svg>
 </div>
 
         <!-- Rest of the result section remains the same -->
